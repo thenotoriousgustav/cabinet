@@ -34,6 +34,8 @@ import {
 import { isImageBookmark, isPdfBookmark } from "@/lib/bookmark-kind"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   Dialog,
   DialogClose,
@@ -276,29 +278,39 @@ function PdfViewer({ url, title }: { url: string; title?: string }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-neutral-900 text-neutral-100">
-      <div className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-neutral-700 bg-neutral-800 px-2">
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon-xs" aria-label="Toggle page thumbnails" title="Toggle page thumbnails" onClick={() => setShowPages((shown) => !shown)}><SidebarSimple /></Button>
-          <span className="mx-1 h-5 border-l border-neutral-600" />
-          <Button variant="ghost" size="icon-xs" aria-label="Previous page" disabled={page <= 1 || loading} onClick={() => setPage((n) => n - 1)}><CaretLeft /></Button>
-          <span className="min-w-16 text-center text-xs tabular-nums">{pageCount ? `${page} / ${pageCount}` : "— / —"}</span>
-          <Button variant="ghost" size="icon-xs" aria-label="Next page" disabled={page >= pageCount || loading} onClick={() => setPage((n) => n + 1)}><CaretRight /></Button>
-          <span className="mx-1 h-5 border-l border-neutral-600" />
-          <Button variant="ghost" size="icon-xs" aria-label="Zoom out" disabled={zoom <= 0.5 || loading} onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}><MagnifyingGlassMinus /></Button>
-          <span className="w-10 text-center text-xs tabular-nums">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" size="icon-xs" aria-label="Zoom in" disabled={zoom >= 2 || loading} onClick={() => setZoom((z) => Math.min(2, z + 0.25))}><MagnifyingGlassPlus /></Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Fit page" title="Fit page" disabled={loading} onClick={() => setZoom(1)}><ArrowsIn /></Button>
-          <Button variant={continuous ? "secondary" : "ghost"} size="sm" className="h-8 px-2 text-xs" aria-pressed={continuous} onClick={() => setContinuous(true)}>Continuous</Button>
-          <Button variant={!continuous ? "secondary" : "ghost"} size="sm" className="h-8 px-2 text-xs" aria-pressed={!continuous} onClick={() => setContinuous(false)}>Single page</Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Rotate clockwise" title="Rotate clockwise" disabled={loading} onClick={() => setRotation((r) => (r + 90) % 360)}><ArrowClockwise /></Button>
-          <span className="mx-1 h-5 border-l border-neutral-600" />
-          <Button variant={drawing ? "secondary" : "ghost"} size="icon-xs" aria-label="Draw on page" title="Draw on page" disabled={loading} onClick={() => setDrawing((value) => !value)}><PencilSimple /></Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Undo drawing" title="Undo" disabled={!strokes.length} onClick={() => { const previous = strokes.at(-1); if (previous) { setStrokes(strokes.slice(0, -1)); setRedoStrokes([...redoStrokes, previous]) } }}><ArrowUUpLeft /></Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Redo drawing" title="Redo" disabled={!redoStrokes.length} onClick={() => { const next = redoStrokes.at(-1); if (next) { setRedoStrokes(redoStrokes.slice(0, -1)); setStrokes([...strokes, next]) } }}><ArrowUUpRight /></Button>
+      <div className="flex min-h-12 shrink-0 items-center justify-between gap-3 border-b border-neutral-700 bg-neutral-800 px-3">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <ButtonGroup aria-label="Page navigation" className="shrink-0">
+            <Button variant="ghost" size="icon-sm" aria-label="Toggle page thumbnails" title="Thumbnails" aria-pressed={showPages} onClick={() => setShowPages((shown) => !shown)} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><SidebarSimple /></Button>
+            <ButtonGroupSeparator className="bg-neutral-600" />
+            <Button variant="ghost" size="icon-sm" aria-label="Previous page" disabled={page <= 1 || loading} onClick={() => setPage((n) => n - 1)} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><CaretLeft /></Button>
+            <span aria-live="polite" className="flex h-8 min-w-[4.5rem] items-center justify-center px-1 text-xs tabular-nums text-neutral-100">{pageCount ? `${page} / ${pageCount}` : "— / —"}</span>
+            <Button variant="ghost" size="icon-sm" aria-label="Next page" disabled={page >= pageCount || loading} onClick={() => setPage((n) => n + 1)} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><CaretRight /></Button>
+          </ButtonGroup>
+
+          <ButtonGroup aria-label="Zoom controls" className="shrink-0">
+            <Button variant="ghost" size="icon-sm" aria-label="Zoom out" disabled={zoom <= 0.5 || loading} onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><MagnifyingGlassMinus /></Button>
+            <span className="flex h-8 min-w-11 items-center justify-center px-1 text-xs tabular-nums text-neutral-100">{Math.round(zoom * 100)}%</span>
+            <Button variant="ghost" size="icon-sm" aria-label="Zoom in" disabled={zoom >= 2 || loading} onClick={() => setZoom((z) => Math.min(2, z + 0.25))} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><MagnifyingGlassPlus /></Button>
+            <ButtonGroupSeparator className="bg-neutral-600" />
+            <Button variant="ghost" size="icon-sm" aria-label="Fit page" title="Fit page" disabled={loading} onClick={() => setZoom(1)} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><ArrowsIn /></Button>
+          </ButtonGroup>
+
+          <ToggleGroup type="single" value={continuous ? "continuous" : "single"} onValueChange={(value) => { if (value) setContinuous(value === "continuous") }} aria-label="Page layout" variant="outline" size="sm" spacing={0} className="h-8 shrink-0 rounded-md border border-neutral-600 bg-neutral-900 p-0.5 text-neutral-300">
+            <ToggleGroupItem value="single" className="h-7 min-w-0 rounded px-2 text-xs text-neutral-300 hover:bg-neutral-700 hover:text-white data-[state=on]:bg-neutral-700 data-[state=on]:text-white">Single page</ToggleGroupItem>
+            <ToggleGroupItem value="continuous" className="h-7 min-w-0 rounded px-2 text-xs text-neutral-300 hover:bg-neutral-700 hover:text-white data-[state=on]:bg-neutral-700 data-[state=on]:text-white">Continuous</ToggleGroupItem>
+          </ToggleGroup>
+
+          <ButtonGroup aria-label="Annotations" className="shrink-0">
+            <Button variant={drawing ? "secondary" : "ghost"} size="icon-sm" aria-label="Draw on page" title="Draw on page" disabled={loading} onClick={() => setDrawing((value) => !value)} className="text-neutral-300 hover:bg-neutral-700 hover:text-white aria-pressed:bg-neutral-700" aria-pressed={drawing}><PencilSimple /></Button>
+            <Button variant="ghost" size="icon-sm" aria-label="Undo drawing" title="Undo" disabled={!strokes.length} onClick={() => { const previous = strokes.at(-1); if (previous) { setStrokes(strokes.slice(0, -1)); setRedoStrokes([...redoStrokes, previous]) } }} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><ArrowUUpLeft /></Button>
+            <Button variant="ghost" size="icon-sm" aria-label="Redo drawing" title="Redo" disabled={!redoStrokes.length} onClick={() => { const next = redoStrokes.at(-1); if (next) { setRedoStrokes(redoStrokes.slice(0, -1)); setStrokes([...strokes, next]) } }} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><ArrowUUpRight /></Button>
+            <Button variant="ghost" size="icon-sm" aria-label="Rotate clockwise" title="Rotate clockwise" disabled={loading} onClick={() => setRotation((r) => (r + 90) % 360)} className="text-neutral-300 hover:bg-neutral-700 hover:text-white"><ArrowClockwise /></Button>
+          </ButtonGroup>
         </div>
-        <div className="flex items-center gap-1">
-          <a href={url} download={title || "document.pdf"} className="inline-flex h-8 items-center gap-1 rounded px-2 text-xs text-neutral-300 hover:bg-neutral-700"><DownloadSimple /> Download</a>
-          <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => window.open(url, "_blank", "noopener,noreferrer")?.print()}><Printer /> Print</Button>
+        <div className="flex shrink-0 items-center gap-1 border-l border-neutral-700 pl-3">
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-neutral-300 hover:bg-neutral-700 hover:text-white" asChild><a href={url} download={title || "document.pdf"}><DownloadSimple data-icon="inline-start" />Download</a></Button>
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-neutral-300 hover:bg-neutral-700 hover:text-white" onClick={() => window.open(url, "_blank", "noopener,noreferrer")?.print()}><Printer data-icon="inline-start" />Print</Button>
         </div>
       </div>
       <div className="flex min-h-0 flex-1">
