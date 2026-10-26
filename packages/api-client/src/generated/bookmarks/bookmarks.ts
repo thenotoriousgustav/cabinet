@@ -35,7 +35,6 @@ import type {
   BookmarksControllerFindAllParams,
   BookmarksControllerProxyImageParams,
   BookmarksControllerProxyPageParams,
-  BookmarksControllerRediscoverParams,
   BookmarksControllerScrapeParams,
   BulkActionDto,
   BulkArchiveDto,
@@ -1399,99 +1398,6 @@ export function useBookmarksControllerGetHealthSummary<TData = Awaited<ReturnTyp
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getBookmarksControllerGetHealthSummaryQueryOptions(options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-/**
- * @summary Get a shuffled selection of older saved items to revisit
- */
-export const bookmarksControllerRediscover = (
-    params?: BookmarksControllerRediscoverParams,
- options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
-) => {
-
-
-      return customInstance<void>(
-      {url: `/v1/bookmarks/rediscover`, method: 'GET',
-        params, signal
-    },
-      options);
-    }
-
-
-
-
-export const getBookmarksControllerRediscoverQueryKey = (params?: BookmarksControllerRediscoverParams,) => {
-    return [
-    `/v1/bookmarks/rediscover`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-
-export const getBookmarksControllerRediscoverQueryOptions = <TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(params?: BookmarksControllerRediscoverParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getBookmarksControllerRediscoverQueryKey(params);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof bookmarksControllerRediscover>>> = ({ signal }) => bookmarksControllerRediscover(params, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type BookmarksControllerRediscoverQueryResult = NonNullable<Awaited<ReturnType<typeof bookmarksControllerRediscover>>>
-export type BookmarksControllerRediscoverQueryError = unknown
-
-
-export function useBookmarksControllerRediscover<TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(
- params: undefined |  BookmarksControllerRediscoverParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof bookmarksControllerRediscover>>,
-          TError,
-          Awaited<ReturnType<typeof bookmarksControllerRediscover>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useBookmarksControllerRediscover<TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(
- params?: BookmarksControllerRediscoverParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof bookmarksControllerRediscover>>,
-          TError,
-          Awaited<ReturnType<typeof bookmarksControllerRediscover>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useBookmarksControllerRediscover<TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(
- params?: BookmarksControllerRediscoverParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Get a shuffled selection of older saved items to revisit
- */
-
-export function useBookmarksControllerRediscover<TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(
- params?: BookmarksControllerRediscoverParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getBookmarksControllerRediscoverQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

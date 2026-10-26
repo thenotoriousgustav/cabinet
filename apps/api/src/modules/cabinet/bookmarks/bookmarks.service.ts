@@ -1093,33 +1093,6 @@ export class BookmarksService {
     }))
   }
 
-  /**
-   * A shuffled handful of the user's own active items for Rediscover. Saves older than a week come
-   * first, since recent ones are still remembered; a young library falls back to whatever it has.
-   */
-  async rediscover(userId: string, limit = 12) {
-    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
-      throw new BadRequestException("Limit must be an integer between 1 and 50")
-    }
-    const picked = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM bookmarks
-      WHERE "userId" = ${userId}::uuid AND "deletedAt" IS NULL AND "isArchived" = false
-      ORDER BY ("createdAt" < now() - interval '7 days') DESC, random()
-      LIMIT ${limit}`
-    const ids = picked.map((row) => row.id)
-    if (!ids.length) return []
-    const items = await this.prisma.bookmark.findMany({
-      where: { id: { in: ids }, userId, deletedAt: null },
-      omit: { drawing: true },
-      include: { tags: true, folder: { select: folderSummary } },
-    })
-    const byId = new Map(items.map((item) => [item.id, item]))
-    return ids
-      .map((id) => byId.get(id))
-      .filter((item) => item !== undefined)
-      .map((item) => ({ ...item, canEdit: true, access: "owner" }))
-  }
-
   async cleanDuplicates(userId: string) {
     const duplicatesGrouped = await this.prisma.bookmark.groupBy({
       by: ["url"],

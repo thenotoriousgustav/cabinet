@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
 import { useForm } from "@tanstack/react-form"
 import * as z from "zod"
@@ -31,7 +30,6 @@ import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@/components
 import { CabinetContainer } from "@/components/cabinet-container"
 import { CabinetSidebarFilters } from "./components/cabinet-sidebar-filters"
 import { Toolbar, BookmarkViewControls } from "./components/toolbar"
-import { SearchTools } from "./components/search-tools"
 import { GettingStarted } from "./components/getting-started"
 import { useActivityOverview } from "@/lib/activity"
 import { SearchQueryContext } from "./components/search-highlight"
@@ -65,7 +63,6 @@ import { MobileBottomNav, type MobileTab } from "./components/mobile-bottom-nav"
 import { MobileAddBookmarkDrawer } from "./components/mobile-add-bookmark-drawer"
 import { DownloadMediaDialog } from "./components/download-media-dialog"
 import { CommandMenu } from "./components/command-menu"
-import { RediscoverDialog } from "./components/rediscover-dialog"
 import { BulkActionsSheet, BulkTagForm } from "./components/bulk-actions-sheet"
 import { useCabinetFilters } from "./hooks/use-cabinet-filters"
 import { useBookmarkMutations } from "./hooks/use-bookmark-mutations"
@@ -180,12 +177,6 @@ function CabinetWorkspace() {
   const [isMobileAddOpen, setIsMobileAddOpen] = useState(false)
   const [downloadBookmark, setDownloadBookmark] = useState<any | null>(null)
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false)
-  const [isRediscoverOpen, setIsRediscoverOpen] = useState(false)
-  const [rediscoverSession, setRediscoverSession] = useState(0)
-  const openRediscover = () => {
-    setRediscoverSession((value) => value + 1)
-    setIsRediscoverOpen(true)
-  }
   const [isBulkSheetOpen, setIsBulkSheetOpen] = useState(false)
   const [previewBookmark, setPreviewBookmark] = useState<any | null>(null)
 
@@ -878,7 +869,6 @@ function CabinetWorkspace() {
     >
       <Sidebar variant="floating" collapsible="offcanvas">
               <CabinetSidebarFilters
-                onOpenRediscover={openRediscover}
                 user={user}
                 onLogout={handleLogout}
                 selectedFolderId={selectedFolderId}
@@ -994,14 +984,6 @@ function CabinetWorkspace() {
             <div className="flex h-full min-w-0">
 
             <section ref={bookmarkScrollRef} className="h-full min-w-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pr-0 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] sm:pr-1 md:pb-8">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-              <SearchTools userId={user!.id}
-                location={{ folderId: selectedFolderId, tag: selectedTag, view: currentView, format: formatFilter, q: searchQuery, sort, domain, addedAfter, addedBefore }}
-                onRefine={(next) => { setDomain(next.domain); setAddedAfter(next.addedAfter); setAddedBefore(next.addedBefore) }}
-                tags={tags} onSelectTag={setSelectedTag}
-              />
-              <Button variant="ghost" size="sm" asChild><Link href="/cabinet/activity">Activity{activity && activity.pending + activity.running + activity.failed > 0 ? ` (${activity.pending + activity.running + activity.failed})` : ""}</Link></Button>
-              </div>
               {/* Bookmarks Grid / List */}
               <SearchQueryContext.Provider value={searchDebounced}>
               <BookmarkList
@@ -1114,16 +1096,6 @@ function CabinetWorkspace() {
       </SidebarInset>
 
       {/* Global Command Menu ⌘K */}
-      <RediscoverDialog
-        key={rediscoverSession}
-        session={rediscoverSession}
-        open={isRediscoverOpen}
-        onOpenChange={setIsRediscoverOpen}
-        onOpenItem={handleOpenFromCommandMenu}
-        onToggleFavorite={toggleFavorite}
-        onArchive={toggleArchive}
-        onTrash={handleDeleteBookmark}
-      />
       <CommandMenu
         open={isCommandMenuOpen}
         onOpenChange={setIsCommandMenuOpen}
@@ -1150,7 +1122,6 @@ function CabinetWorkspace() {
         onScanHealth={handleScan}
         onCreateNote={handleCreateNote}
         onCreateDrawing={handleCreateDrawing}
-        onOpenRediscover={openRediscover}
       />
 
       <ActionBar

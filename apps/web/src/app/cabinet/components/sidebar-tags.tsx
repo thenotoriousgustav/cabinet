@@ -57,10 +57,7 @@ export function SidebarTags({ tags, selectedTag, onSelectTag, onCreateTag, onDel
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>
-        Tags
-        {tags.length > 0 && <span className="ml-1 tabular-nums">{tags.length}</span>}
-      </SidebarGroupLabel>
+      <SidebarGroupLabel>Tags</SidebarGroupLabel>
       <SidebarGroupAction title="Create tag" aria-label="Create tag" onClick={onCreateTag}>
         <Plus />
       </SidebarGroupAction>

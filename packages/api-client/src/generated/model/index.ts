@@ -16,7 +16,6 @@ export * from './bookmarksControllerFindAllSort.js';
 export * from './bookmarksControllerFindAllType.js';
 export * from './bookmarksControllerProxyImageParams.js';
 export * from './bookmarksControllerProxyPageParams.js';
-export * from './bookmarksControllerRediscoverParams.js';
 export * from './bookmarksControllerScrapeParams.js';
 export * from './bulkActionDto.js';
 export * from './bulkArchiveDto.js';

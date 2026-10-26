@@ -158,9 +158,6 @@ export function FolderTree({
         >
           <FolderSimple className="size-3.5 shrink-0" />
           <span className="truncate">{folder.name}</span>
-          {folder._count?.bookmarks !== undefined && (
-            <span className="text-xs tabular-nums text-muted-foreground">{folder._count.bookmarks}</span>
-          )}
         </button>
         <FolderActions
           folder={folder}

@@ -4,7 +4,7 @@ import { chromium, expect } from "@playwright/test"
 import { cabinetResponse, bookmarks } from "./fixtures/cabinet-data.mjs"
 const origin = process.env.WEB_URL || "http://localhost:3000"
 const noteId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-const requests = [], writes = [], errors = [], searches = []
+const requests = [], writes = [], errors = []
 let offline = false, loseResponse = false
 let note = { id: noteId, userId: "owner", type: "NOTE", access: "owner", title: "Original note", notes: "Keep this text", folderId: null, tags: [], noteRevision: 0, noteSaveId: null, noteDocument: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Keep this text" }] }] } }
 const browser = await chromium.launch({ headless: true })
@@ -17,10 +17,6 @@ try {
     requests.push({ method: request.method(), path, query: Object.fromEntries(url.searchParams) })
     const reply = (body, status = 200) => route.fulfill({ status, contentType: "application/json", headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "content-type" }, body: JSON.stringify(body) })
     if (request.method() === "OPTIONS") return reply({})
-    if (path.endsWith("/saved-searches")) {
-      if (request.method() === "POST") { searches.push({ ...request.postDataJSON(), id: "saved-one" }); return reply({ data: searches.at(-1) }) }
-      return reply({ data: searches })
-    }
     if (path.endsWith(`/bookmarks/${noteId}/note`)) {
       const body = request.postDataJSON()
       writes.push(body)
@@ -41,18 +37,9 @@ try {
   await page.getByRole("searchbox", { name: "Search bookmarks" }).fill("design")
   await expect.poll(() => requests.filter((request) => request.path.endsWith("/bookmarks")).at(-1)?.query.sort).toBe("relevance")
   await expect(page.locator("mark").first()).toBeVisible()
-  await page.getByRole("button", { name: "Filters", exact: true }).click()
-  await page.getByLabel("Domain", { exact: true }).fill("example.com")
-  await page.getByLabel("Added from (UTC)", { exact: true }).fill("2026-01-01")
-  await page.getByRole("button", { name: "Apply filters" }).click()
-  await expect.poll(() => requests.filter((request) => request.path.endsWith("/bookmarks")).at(-1)?.query.domain).toBe("example.com")
-  await page.getByRole("button", { name: "Saved searches", exact: true }).click()
-  await page.getByRole("textbox", { name: "Save current search" }).fill("Design references")
-  await page.getByRole("button", { name: "Save search", exact: true }).click()
-  await expect(page.getByRole("link", { name: "Design references", exact: true }).last()).toBeVisible()
-  assert.match(searches[0].url, /domain=example.com/)
-  assert.match(searches[0].url, /after=2026-01-01/)
-  await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Filters", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Saved searches", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: /^Activity/ })).toHaveCount(0)
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 })
     await expect.poll(async () => page.locator('[data-slot="masonry-item"]').first().evaluate((element) => element.getBoundingClientRect().right <= innerWidth)).toBe(true)
@@ -91,5 +78,5 @@ try {
   await expect(second.getByText("All changes saved", { exact: true })).toBeVisible()
   assert.equal(note.title, "Second tab keeps draft")
   assert.deepEqual(errors, [])
-  console.log("PASS browser search filters, relevance default, highlights, saved searches, mobile overflow, note reconnect, lost-response idempotency and two-tab conflict resolution")
+  console.log("PASS browser search, hidden toolbar actions, highlights, mobile overflow, note reconnect, lost-response idempotency and two-tab conflict resolution")
 } finally { await browser.close() }

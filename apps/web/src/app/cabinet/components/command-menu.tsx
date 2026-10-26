@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { MagnifyingGlass, FolderSimple, Hash as Tag, Plus, Scribble, Star, Archive, Trash, VideoCamera, FileText, ArrowsClockwise, SidebarSimple, Shuffle } from "@phosphor-icons/react"
+import { MagnifyingGlass, FolderSimple, Hash as Tag, Plus, Scribble, Star, Archive, Trash, VideoCamera, FileText, ArrowsClockwise, SidebarSimple } from "@phosphor-icons/react"
 import { CommandDialog, CommandInput, CommandList, CommandGroup, CommandItem, CommandShortcut, CommandSeparator } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
@@ -30,7 +30,6 @@ interface CommandMenuProps {
   onScanHealth: () => void
   onCreateNote: () => void
   onCreateDrawing: () => void
-  onOpenRediscover: () => void
 }
 
 type Action = { label: string; icon: typeof Plus; run: () => void; shortcut?: string }
@@ -65,7 +64,6 @@ export function CommandMenu(props: CommandMenuProps) {
   const views: Action[] = [
     { label: 'All items', icon: FolderSimple, run: props.onShowAll },
     { label: 'Favorites', icon: Star, run: props.onFilterFavorite },
-    { label: 'Rediscover old saves', icon: Shuffle, run: props.onOpenRediscover },
     { label: 'Notes', icon: FileText, run: props.onFilterNotes },
     { label: 'Videos & media', icon: VideoCamera, run: props.onFilterVideo },
     { label: 'Archive', icon: Archive, run: props.onFilterArchived },

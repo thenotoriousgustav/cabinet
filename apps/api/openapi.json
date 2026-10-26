@@ -665,35 +665,6 @@
         ]
       }
     },
-    "/v1/bookmarks/rediscover": {
-      "get": {
-        "operationId": "BookmarksController_rediscover",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "cookie": []
-          }
-        ],
-        "summary": "Get a shuffled selection of older saved items to revisit",
-        "tags": [
-          "bookmarks"
-        ]
-      }
-    },
     "/v1/bookmarks/duplicates": {
       "get": {
         "operationId": "BookmarksController_getDuplicates",

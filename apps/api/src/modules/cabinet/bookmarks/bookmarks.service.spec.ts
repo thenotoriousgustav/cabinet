@@ -886,33 +886,4 @@ describe('BookmarksService - Trash Functionality', () => {
     });
   });
 
-  describe('rediscover', () => {
-    beforeEach(() => {
-      prisma.$queryRaw = jest.fn().mockResolvedValue([{ id: 'b' }, { id: 'a' }]);
-      prisma.bookmark.findMany.mockResolvedValue([
-        { id: 'a', userId: 'user-1', title: 'A' },
-        { id: 'b', userId: 'user-1', title: 'B' },
-      ]);
-    });
-
-    it('returns the shuffled own active items in the picked order', async () => {
-      const items = await service.rediscover('user-1', 2);
-      expect(items.map((item: any) => item.id)).toEqual(['b', 'a']);
-      expect(items[0]).toMatchObject({ canEdit: true, access: 'owner' });
-      const [sql, ...values] = prisma.$queryRaw.mock.calls[0];
-      const query = sql.join('?');
-      expect(query).toContain('"deletedAt" IS NULL AND "isArchived" = false');
-      expect(query).toMatch(/ORDER BY \("createdAt" < now\(\) - interval '7 days'\) DESC, random\(\)/);
-      expect(values).toEqual(['user-1', 2]);
-      expect(prisma.bookmark.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['b', 'a'] }, userId: 'user-1', deletedAt: null });
-    });
-
-    it('rejects out-of-range limits and returns nothing for an empty library', async () => {
-      await expect(service.rediscover('user-1', 0)).rejects.toThrow('Limit');
-      await expect(service.rediscover('user-1', 51)).rejects.toThrow('Limit');
-      prisma.$queryRaw.mockResolvedValue([]);
-      expect(await service.rediscover('user-1')).toEqual([]);
-      expect(prisma.bookmark.findMany).not.toHaveBeenCalled();
-    });
-  });
 });

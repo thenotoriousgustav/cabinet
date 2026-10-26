@@ -221,13 +221,6 @@ export class BookmarksController {
     return this.bookmarksService.getHealthSummary(user.id);
   }
 
-  @Get('rediscover')
-  @ApiOperation({ summary: 'Get a shuffled selection of older saved items to revisit' })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  async rediscover(@CurrentUser() user: any, @Query('limit') limit?: string) {
-    return this.bookmarksService.rediscover(user.id, limit === undefined ? undefined : Number(limit));
-  }
-
   @Get('duplicates')
   @ApiOperation({ summary: 'Get groups of duplicate bookmarks' })
   async getDuplicates(@CurrentUser() user: any) {
