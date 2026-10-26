@@ -87,6 +87,7 @@ try {
   const libraryCard = page.locator('[data-slot="card"]').filter({ has: page.getByRole("link", { name: samples[0][0], exact: true }) })
   await expect(libraryCard.locator('[data-slot="card-content"]')).toHaveCSS("padding", "16px")
   await page.getByRole("button", { name: "Display options", exact: true }).click()
+  await expect(page.getByRole("menuitemradio", { name: "Comfortable", exact: true })).toHaveCount(0)
   await page.getByRole("menuitemradio", { name: "Compact", exact: true }).click()
   await expect(libraryCard.locator('[data-slot="card-content"]')).toHaveCSS("padding", "12px")
   await page.getByRole("button", { name: "Display options", exact: true }).click()

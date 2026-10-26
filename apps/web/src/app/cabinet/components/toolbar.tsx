@@ -54,7 +54,7 @@ export function BookmarkViewControls({
           <DropdownMenuGroup>
             <DropdownMenuLabel>Density</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={displayPreferences.density} onValueChange={(value) => { if (isDensity(value)) onDisplayPreferencesChange?.({ ...displayPreferences, density: value }) }}>
-              {densityOptions.map((option) => <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>)}
+              {densityOptions.filter((option) => option.value !== "comfortable").map((option) => <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>)}
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
