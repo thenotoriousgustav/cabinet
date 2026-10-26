@@ -33,6 +33,7 @@ import { MetadataQueueService } from "../services/metadata-queue.service"
 import {
   MAX_PROXIED_PAGE_BYTES,
   decodeHtml,
+  fetchWithBrowserFallback,
   isBlockedResponse,
   isHtmlContentType,
   proxiedPageHeaders,
@@ -993,6 +994,14 @@ export class BookmarksService {
           continue
         }
         if (isBlockedResponse(response.status, response.headers)) {
+          await response.body?.cancel().catch(() => undefined)
+          const rendered = await fetchWithBrowserFallback(target, validatePublicUrl)
+          if (rendered) {
+            return res
+              .status(200)
+              .set(proxiedPageHeaders())
+              .send(rewriteProxiedPage(rendered.html, rendered.finalUrl, { stripPageScripts: true }))
+          }
           return fail(502, "This website blocks previews from other apps.", "blocked")
         }
         if (!response.ok) {

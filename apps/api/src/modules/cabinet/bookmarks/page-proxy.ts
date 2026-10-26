@@ -105,12 +105,21 @@ const readinessScript = `(function () {
 /**
  * Prepares fetched HTML for the proxy response: drops in-page CSP rules and any
  * author <base>, then points relative URLs back at the original site and installs
- * the navigation hook.
+ * the navigation hook. When `stripPageScripts` is set (for already-rendered browser
+ * snapshots), author scripts are removed so hydration on the opaque sandbox origin
+ * cannot crash the rendered document.
  */
-export function rewriteProxiedPage(html: string, pageUrl: string): string {
-  const stripped = html
+export function rewriteProxiedPage(
+  html: string,
+  pageUrl: string,
+  options?: { stripPageScripts?: boolean },
+): string {
+  let stripped = html
     .replace(/<meta\b[^>]*http-equiv\s*=\s*["']?content-security-policy["']?[^>]*>/gi, "")
     .replace(/<base\b[^>]*>/gi, "")
+  if (options?.stripPageScripts) {
+    stripped = stripped.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+  }
   const injection =
     `<base href="${escapeHtml(pageUrl)}" target="_self">` +
     `<script>${navigationScript}</script><script>${readinessScript}</script>`
@@ -125,6 +134,48 @@ export function rewriteProxiedPage(html: string, pageUrl: string): string {
     return stripped.slice(0, at) + `<head>${injection}</head>` + stripped.slice(at)
   }
   return `<head>${injection}</head>` + stripped
+}
+
+/**
+ * Fetches a rendered HTML snapshot with a real Chromium TLS/HTTP2 stack when plain
+ * Node `fetch` is refused by bot protection (such as Medium behind Cloudflare).
+ */
+export async function fetchWithBrowserFallback(
+  url: string,
+  validateUrl: (candidate: string) => Promise<unknown>,
+): Promise<{ html: string; finalUrl: string } | null> {
+  let browser: import("playwright-core").Browser | undefined
+  try {
+    await validateUrl(url)
+    const { chromium } = await import("playwright-core")
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--disable-blink-features=AutomationControlled"],
+    })
+    const context = await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 800 },
+      locale: "en-US",
+    })
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined })
+    })
+    const page = await context.newPage()
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 12000 })
+    const finalUrl = page.url()
+    await validateUrl(finalUrl)
+    if (!response || response.status() >= 400) return null
+    const title = await page.title()
+    if (/^(just a moment|attention required)/i.test(title.trim())) return null
+    const html = await page.content()
+    if (!html || Buffer.byteLength(html, "utf8") > MAX_PROXIED_PAGE_BYTES) return null
+    return { html, finalUrl }
+  } catch {
+    return null
+  } finally {
+    await browser?.close().catch(() => undefined)
+  }
 }
 
 /** Why a preview failed, so the app can say more than "could not be loaded". */

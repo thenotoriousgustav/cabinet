@@ -43,6 +43,19 @@ describe("rewriteProxiedPage", () => {
     const html = rewriteProxiedPage("<head></head>", 'https://example.com/?q="><script>x</script>')
     expect(html).toContain('href="https://example.com/?q=&quot;&gt;&lt;script&gt;x&lt;/script&gt;"')
   })
+
+  it("strips author scripts when serving a rendered browser snapshot while keeping proxy hooks", () => {
+    const html = rewriteProxiedPage(
+      '<html><head><script src="https://medium.com/app.js"></script></head><body><article>Story</article><script>window.crash()</script></body></html>',
+      "https://medium.com/@author/story",
+      { stripPageScripts: true },
+    )
+    expect(html).toContain("<article>Story</article>")
+    expect(html).not.toContain("https://medium.com/app.js")
+    expect(html).not.toContain("window.crash()")
+    expect(html).toContain(PREVIEW_NAVIGATE_MESSAGE)
+    expect(html).toContain(PREVIEW_READY_MESSAGE)
+  })
 })
 
 describe("proxied page readiness", () => {

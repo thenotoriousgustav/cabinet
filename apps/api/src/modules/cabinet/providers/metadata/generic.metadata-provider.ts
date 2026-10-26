@@ -9,6 +9,7 @@ import {
 } from "./metadata-provider.interface"
 import { validatePublicUrl } from "@/common/utils/ssrf"
 import { readMetadataHtml } from "./metadata-body"
+import { fetchWithBrowserFallback } from "@/modules/cabinet/bookmarks/page-proxy"
 
 @Injectable()
 export class GenericMetadataProvider implements MetadataProvider {
@@ -183,7 +184,8 @@ export class GenericMetadataProvider implements MetadataProvider {
         // Retry the same URL with the next user agent.
       }
     }
-    return null
+    const rendered = await fetchWithBrowserFallback(url, validatePublicUrl)
+    return rendered ? { html: rendered.html } : null
   }
 
   private getMetaContent(
