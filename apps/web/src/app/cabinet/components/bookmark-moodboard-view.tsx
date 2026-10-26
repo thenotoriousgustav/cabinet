@@ -54,7 +54,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 import { toast } from "@/components/ui/sonner"
-import { canDownloadMedia, highlightQuote, isDrawingBookmark, isNoteBookmark, isVideoBookmark, isPdfBookmark, itemAccess } from "@/lib/bookmark-kind"
+import { canDownloadMedia, highlightQuote, isDrawingBookmark, isImageBookmark, isNoteBookmark, isVideoBookmark, isPdfBookmark, itemAccess } from "@/lib/bookmark-kind"
 import { safeHttpUrl } from "@/lib/shared-collection"
 import { activateBookmark, bookmarkOriginalHref } from "@/lib/bookmark-click"
 import { getProxiedImageUrl } from "@/lib/bookmark-image"
@@ -258,7 +258,7 @@ function NoteContentPreview({ bookmark }: { bookmark: any }) {
   )
 }
 
-function PdfPagePreview({ src }: { src: string }) {
+function PdfPagePreview({ src, onRatio }: { src: string; onRatio: (ratio: number) => void }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
 
   React.useEffect(() => {
@@ -273,6 +273,8 @@ function PdfPagePreview({ src }: { src: string }) {
         const page = await pdf.getPage(1)
         if (cancelled || !canvasRef.current) return
 
+        const pageSize = page.getViewport({ scale: 1 })
+        onRatio(pageSize.width / pageSize.height)
         const viewport = page.getViewport({ scale: 1.5 })
         const canvas = canvasRef.current
         const context = canvas.getContext("2d")
@@ -291,7 +293,7 @@ function PdfPagePreview({ src }: { src: string }) {
       cancelled = true
       cancelRender?.()
     }
-  }, [src])
+  }, [src, onRatio])
 
   return <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 m-auto h-full w-full bg-white object-contain" />
 }
@@ -330,6 +332,8 @@ export function MoodboardCard({
   const sourceHref = isNote ? safeHttpUrl(bookmark.url || "")?.href : undefined
   const isDrawing = isDrawingBookmark(bookmark)
   const isPdf = isPdfBookmark(bookmark)
+  const isImage = isImageBookmark(bookmark)
+  const showWebsite = preferences.showWebsite && !isPdf && !isImage
   // Notes and drawings live in Cabinet; everything link-specific skips them.
   const inCabinet = isNote || isDrawing
   const isVideo = isVideoBookmark(bookmark)
@@ -361,6 +365,7 @@ export function MoodboardCard({
   const [imageStatus, setImageStatus] = React.useState<
     "loading" | "ready" | "error"
   >(rawImageUrl || isPendingEnrichment ? "loading" : "error")
+  const [pdfAspectRatio, setPdfAspectRatio] = React.useState(3 / 4)
 
   React.useEffect(() => {
     const nextProxied = getProxiedImageUrl(bookmark.imageUrl)
@@ -685,10 +690,11 @@ export function MoodboardCard({
               rel="noopener noreferrer"
               draggable={false}
               onClick={activate}
-              className="relative flex aspect-[3/4] w-full flex-col justify-end overflow-hidden bg-muted/20 text-center hover:bg-muted/30"
+              className="relative flex w-full flex-col justify-end overflow-hidden bg-muted/20 text-center hover:bg-muted/30"
+              style={{ aspectRatio: pdfAspectRatio }}
             >
               {originalHref ? (
-                <PdfPagePreview src={originalHref} />
+                <PdfPagePreview src={originalHref} onRatio={setPdfAspectRatio} />
               ) : (
                 <div className="flex size-12 items-center justify-center rounded-lg bg-card shadow-xs">
                   <FilePdf className="size-7 text-destructive" />
@@ -732,7 +738,7 @@ export function MoodboardCard({
                 </>
               ) : (
                 <span className="flex min-h-36 flex-col gap-3 p-6">
-                  {preferences.showWebsite && <span className="truncate font-serif text-base text-muted-foreground">{bookmark.siteName || hostname.replace(/^www\./, "")}</span>}
+                  {showWebsite && <span className="truncate font-serif text-base text-muted-foreground">{bookmark.siteName || hostname.replace(/^www\./, "")}</span>}
                   {preferences.showTitle && <span className="line-clamp-4 font-serif text-xl leading-snug text-foreground"><SearchHighlight text={bookmark.title || bookmark.url} /></span>}
                 </span>
               )}
@@ -797,6 +803,20 @@ export function MoodboardCard({
               <span className="text-xs text-neutral-500">Empty drawing</span>
             )}
           </div>
+        ) : isPdf && preferences.showImage ? (
+          <a
+            href={originalHref || undefined}
+            aria-label={`Preview ${bookmark.title || "PDF"} in Cabinet`}
+            target="_blank"
+            rel="noopener noreferrer"
+            draggable={false}
+            onClick={activate}
+            className="group/header relative block w-full overflow-hidden bg-muted/20"
+          >
+            <div className="relative w-full overflow-hidden bg-white" style={{ aspectRatio: pdfAspectRatio }}>
+              {originalHref ? <PdfPagePreview src={originalHref} onRatio={setPdfAspectRatio} /> : <div className="flex h-full min-h-28 items-center justify-center"><FilePdf className="size-8 text-muted-foreground" /></div>}
+            </div>
+          </a>
         ) : preferences.showImage ? (
           <a
             href={originalHref || undefined}
@@ -845,8 +865,8 @@ export function MoodboardCard({
               )}
 
               {imageStatus === "error" && (
-                <div className={cn("relative flex w-full flex-col justify-end bg-muted/50 px-4 pb-4 pt-14", preferences.showWebsite ? "min-h-28" : "min-h-14")}>
-                  {preferences.showWebsite && <span className="max-w-full truncate font-serif text-2xl tracking-tight text-muted-foreground">{hostname.replace(/^www\./, "")}</span>}
+                <div className={cn("relative flex w-full flex-col justify-end bg-muted/50 px-4 pb-4 pt-14", showWebsite ? "min-h-28" : "min-h-14")}>
+                  {showWebsite && <span className="max-w-full truncate font-serif text-2xl tracking-tight text-muted-foreground">{hostname.replace(/^www\./, "")}</span>}
                 </div>
               )}
             </>
@@ -922,7 +942,7 @@ export function MoodboardCard({
               <SearchHighlight text={bookmark.description} />
             </p>
           )}
-          {preferences.showWebsite && hostname && (imageStatus !== "error" || !preferences.showImage) && (
+          {showWebsite && hostname && (imageStatus !== "error" || !preferences.showImage) && (
             <p className="truncate text-xs leading-5 text-muted-foreground">
               {hostname}
             </p>
