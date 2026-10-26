@@ -114,14 +114,13 @@ export default function SettingsPage() {
     try {
       await importMutation.mutateAsync({ data: { htmlContent: await readBookmarkImport(file) } })
       for (const queryKey of [["/v1/bookmarks"], ["infinite", "/v1/bookmarks"], ["/v1/folders"], ["/v1/tags"]]) queryClient.invalidateQueries({ queryKey })
-      queryClient.invalidateQueries({ queryKey: ["activity-overview"] })
-      toast.success("Import queued. You can leave this page.", { id: toastId, action: { label: "View progress", onClick: () => router.push("/cabinet/activity") } })
+      toast.success("Import queued. You can leave this page.", { id: toastId })
     } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to start bookmark import", { id: toastId }) }
     finally { setIsImporting(false); event.target.value = "" }
   }
   const handleScanLinks = async () => {
     setIsScanning(true)
-    try { await triggerHealthMutation.mutateAsync(); queryClient.invalidateQueries({ queryKey: ["activity-overview"] }); toast.success("Link check queued", { action: { label: "View progress", onClick: () => router.push("/cabinet/activity") } }) }
+    try { await triggerHealthMutation.mutateAsync(); toast.success("Link check queued") }
     catch { toast.error("Failed to start health scan") }
     finally { setIsScanning(false) }
   }
@@ -236,9 +235,18 @@ export default function SettingsPage() {
         <TabsContent value="maintenance" className="flex flex-col gap-8">
           <SettingsSection title="Link health" description="Check whether your saved links are still available. Scans run in the background.">
             <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">{([ ["Total links", health?.total || 0], ["Healthy", health?.ok || 0], ["Redirected", health?.redirected || 0], ["Broken", health?.broken || 0] ] as const).map(([label, value]) => <div key={label}><p className="text-2xl tabular-nums">{value.toLocaleString()}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></div>)}</div>
-            <Button variant="outline" className="w-fit" onClick={handleScanLinks} disabled={isScanning}>{isScanning ? <Spinner /> : <ArrowCounterClockwise data-icon="inline-start" />}{isScanning ? "Scanning…" : "Run Health Scan"}</Button>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" className="w-fit" onClick={handleScanLinks} disabled={isScanning}>{isScanning ? <Spinner /> : <ArrowCounterClockwise data-icon="inline-start" />}{isScanning ? "Scanning…" : "Run Health Scan"}</Button>
+              {(health?.broken || 0) > 0 && <Button variant="outline" asChild className="w-fit"><Link href="/cabinet/broken">View Broken Links ({health.broken})</Link></Button>}
+            </div>
           </SettingsSection>
-          <SettingsSection title="Duplicate URLs" description="Keep the oldest bookmark for each URL and remove its extra copies."><p className="text-sm tabular-nums">{duplicates.length} duplicate groups</p><Button variant="outline" className="w-fit" onClick={handleCleanDuplicates} disabled={duplicates.length === 0 || cleanDuplicatesMutation.isPending}>Clean Duplicates</Button></SettingsSection>
+          <SettingsSection title="Duplicate URLs" description="Keep the oldest bookmark for each URL and remove its extra copies.">
+            <p className="text-sm tabular-nums">{duplicates.length} duplicate groups</p>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" className="w-fit" onClick={handleCleanDuplicates} disabled={duplicates.length === 0 || cleanDuplicatesMutation.isPending}>Clean Duplicates</Button>
+              {duplicates.length > 0 && <Button variant="outline" asChild className="w-fit"><Link href="/cabinet/duplicates">View Duplicate Links</Link></Button>}
+            </div>
+          </SettingsSection>
           <SettingsSection title="Empty trash" description="Permanently delete everything in the trash. This cannot be undone."><p className="text-sm tabular-nums">{health?.trash || 0} bookmarks in the trash</p><Button variant="outline" className="w-fit" onClick={handleEmptyTrash} disabled={(health?.trash || 0) === 0 || isEmptyingTrash}>{isEmptyingTrash ? <Spinner /> : <Trash data-icon="inline-start" />}Empty Trash</Button></SettingsSection>
         </TabsContent>
         <TabsContent value="shortcuts" className="flex flex-col gap-8">

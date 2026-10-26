@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { useForm } from "@tanstack/react-form"
-import * as z from "zod"
 import {
   useFoldersControllerFindAll,
   useFoldersControllerCreate,
@@ -30,12 +28,10 @@ import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@/components
 import { CabinetContainer } from "@/components/cabinet-container"
 import { CabinetSidebarFilters } from "./components/cabinet-sidebar-filters"
 import { Toolbar, BookmarkViewControls } from "./components/toolbar"
-import { GettingStarted } from "./components/getting-started"
-import { useActivityOverview } from "@/lib/activity"
 import { SearchQueryContext } from "./components/search-highlight"
 import { ShareFolderDialog } from "./components/share-folder-dialog"
 import { canAddToFolder, describeFolderAccess, folderAccess } from "@/lib/folder-roles"
-import { editorPath, itemAccess } from "@/lib/bookmark-kind"
+import { editorPath } from "@/lib/bookmark-kind"
 import { BookmarkList } from "./components/bookmark-list"
 import { Sortable } from "@/components/ui/sortable"
 import { bookmarkCollisionDetection, masonrySortingStrategy } from "@/lib/bookmark-sortable"
@@ -69,23 +65,8 @@ import { useBookmarkMutations } from "./hooks/use-bookmark-mutations"
 import { useClipboardPaste } from "./hooks/use-clipboard-paste"
 import { useFinderFileDrop } from "./hooks/use-finder-file-drop"
 import { FileDropOverlay } from "./components/file-drop-overlay"
-
-const folderSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Folder name is required")
-    .max(50, "Folder name must be at most 50 characters"),
-  description: z.string(),
-  parentId: z.string(),
-})
-
-const bookmarkSchema = z.object({
-  url: z.string().trim().min(1, "Enter a link to save."),
-  title: z.string(),
-  description: z.string(),
-  folderId: z.string(),
-  tags: z.array(z.string()),
-})
+import { useCabinetForms } from "./hooks/use-cabinet-forms"
+import { useCabinetShortcuts } from "./hooks/use-cabinet-shortcuts"
 
 export const dynamic = "force-dynamic"
 
@@ -107,7 +88,6 @@ function CabinetWorkspace() {
   const queryClient = useQueryClient()
   const { data: session, isPending: isMeLoading } = authClient.useSession()
   const user = session?.user
-  const { data: activity } = useActivityOverview(user?.id)
   const confirm = useConfirm()
   const [isLoading, setIsLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -172,7 +152,6 @@ function CabinetWorkspace() {
 
   const [selectedBookmarkIds, setSelectedBookmarkIds] = useState<string[]>([])
   const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false)
-  const guidedOrganization = React.useRef(false)
   const { isMobile, setOpenMobile } = useSidebar()
   const [isMobileAddOpen, setIsMobileAddOpen] = useState(false)
   const [downloadBookmark, setDownloadBookmark] = useState<any | null>(null)
@@ -180,12 +159,18 @@ function CabinetWorkspace() {
   const [isBulkSheetOpen, setIsBulkSheetOpen] = useState(false)
   const [previewBookmark, setPreviewBookmark] = useState<any | null>(null)
 
-  const handleSelectMobileTab = (tab: MobileTab) => {
-    rawHandleSelectMobileTab(tab, () => {
-      resetBookmarkForm()
-      setIsMobileAddOpen(true)
-    })
-  }
+  // Mutations
+  const createFolderMutation = useFoldersControllerCreate()
+  const updateFolderMutation = useFoldersControllerUpdate()
+  const removeFolderMutation = useFoldersControllerRemove()
+
+  const createBookmarkMutation = useBookmarksControllerCreate()
+  const updateBookmarkMutation = useBookmarksControllerUpdate()
+  const removeBookmarkMutation = useBookmarksControllerRemove()
+  const removeTagMutation = useTagsControllerRemove()
+
+  const scanHealthMutation = useBookmarksControllerTriggerHealthCheck()
+  const cleanDuplicatesMutation = useBookmarksControllerCleanDuplicates()
 
   const invalidateAllQueries = React.useCallback(() => Promise.all([
     queryClient.invalidateQueries({ queryKey: ["/v1/bookmarks"] }),
@@ -194,125 +179,44 @@ function CabinetWorkspace() {
     queryClient.invalidateQueries({ queryKey: ["/v1/bookmarks/duplicates"] }),
     queryClient.invalidateQueries({ queryKey: ["/v1/folders"] }),
     queryClient.invalidateQueries({ queryKey: ["/v1/tags"] }),
-    queryClient.invalidateQueries({ queryKey: ["activity-overview"] }),
   ]), [queryClient])
 
-  // Modals state
-  const [isBookmarkModalOpen, setIsBookmarkModalOpen] = useState(false)
-  const [bookmarkToEdit, setBookmarkToEdit] = useState<any | null>(null)
-
-  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false)
-  const [folderToEdit, setFolderToEdit] = useState<any | null>(null)
-
-  // TanStack Forms
-  const folderForm = useForm({
-    defaultValues: {
-      name: "",
-      description: "",
-      parentId: "",
-    },
-    validators: {
-      onSubmit: folderSchema,
-    },
-    onSubmit: async ({ value }) => {
-      try {
-        if (folderToEdit) {
-          await updateFolderMutation.mutateAsync({
-            id: folderToEdit.id,
-            data: {
-              name: value.name,
-              description: value.description || undefined,
-              parentId: value.parentId || undefined,
-            },
-          })
-        } else {
-          await createFolderMutation.mutateAsync({
-            data: {
-              name: value.name,
-              description: value.description || undefined,
-              parentId: value.parentId || undefined,
-            },
-          })
-        }
-        invalidateAllQueries()
-        setIsFolderModalOpen(false)
-        resetFolderForm()
-      } catch {
-        toast.error("Failed to save folder")
-      }
-    },
+  const {
+    folderForm,
+    folderToEdit,
+    isFolderModalOpen,
+    setIsFolderModalOpen,
+    resetFolderForm,
+    handleEditFolder,
+    handleDeleteFolder,
+    handleCreateSubfolder,
+    bookmarkForm,
+    bookmarkToEdit,
+    isBookmarkModalOpen,
+    setIsBookmarkModalOpen,
+    resetBookmarkForm,
+    handleEditBookmark,
+    handleCreateNote,
+    handleCreateDrawing,
+  } = useCabinetForms({
+    updateFolderMutation,
+    createFolderMutation,
+    removeFolderMutation,
+    updateBookmarkMutation,
+    createBookmarkMutation,
+    invalidateAllQueries,
+    selectedFolderId,
+    setSelectedFolderId,
+    addTargetFolderId,
+    setIsMobileAddOpen,
   })
 
-  const bookmarkForm = useForm({
-    defaultValues: {
-      url: "",
-      title: "",
-      description: "",
-      folderId: "",
-      tags: [] as string[],
-    },
-    validators: {
-      onSubmit: bookmarkSchema,
-    },
-    onSubmit: async ({ value }) => {
-      const tagsArray = (value.tags || [])
-        .map((t) => t.replace(/^#/, "").trim())
-        .filter((t) => t.length > 0)
-
-      let targetUrl: string | undefined = undefined
-      if (value.url?.trim()) {
-        targetUrl = value.url.trim()
-        if (!/^https?:\/\//i.test(targetUrl)) {
-          targetUrl = "https://" + targetUrl
-        }
-      }
-
-      const toastId = toast.loading(
-        bookmarkToEdit ? "Updating bookmark..." : "Saving bookmark..."
-      )
-      try {
-        if (bookmarkToEdit) {
-          await updateBookmarkMutation.mutateAsync({
-            id: bookmarkToEdit.id,
-            // Someone else's link in a folder you edit: only its shared content can change.
-            data: itemAccess(bookmarkToEdit) === "owner"
-              ? {
-                  type: "BOOKMARK" as any,
-                  url: targetUrl,
-                  title: value.title,
-                  description: value.description,
-                  folderId: value.folderId || null,
-                  tags: tagsArray,
-                }
-              : { url: targetUrl, title: value.title, description: value.description },
-          })
-          toast.success("Bookmark updated", {
-            id: toastId,
-          })
-        } else {
-          await createBookmarkMutation.mutateAsync({
-            data: {
-              type: "BOOKMARK" as any,
-              url: targetUrl,
-              title: value.title || undefined,
-              description: value.description || undefined,
-              folderId: value.folderId || undefined,
-              tags: tagsArray,
-            },
-          })
-          toast.success("Bookmark saved", {
-            id: toastId,
-          })
-        }
-        invalidateAllQueries()
-        setIsBookmarkModalOpen(false)
-        setIsMobileAddOpen(false)
-        resetBookmarkForm()
-      } catch {
-        toast.error("Failed to save item", { id: toastId })
-      }
-    },
-  })
+  const handleSelectMobileTab = (tab: MobileTab) => {
+    rawHandleSelectMobileTab(tab, () => {
+      resetBookmarkForm()
+      setIsMobileAddOpen(true)
+    })
+  }
 
   const reorderMutation = useBookmarksControllerReorder({
     mutation: { scope: { id: "bookmark-order" } },
@@ -451,19 +355,6 @@ function CabinetWorkspace() {
   })
   const duplicateGroups = (duplicatesData as any)?.data || duplicatesData || []
 
-  // Mutations
-  const createFolderMutation = useFoldersControllerCreate()
-  const updateFolderMutation = useFoldersControllerUpdate()
-  const removeFolderMutation = useFoldersControllerRemove()
-
-  const createBookmarkMutation = useBookmarksControllerCreate()
-  const updateBookmarkMutation = useBookmarksControllerUpdate()
-  const removeBookmarkMutation = useBookmarksControllerRemove()
-  const removeTagMutation = useTagsControllerRemove()
-
-  const scanHealthMutation = useBookmarksControllerTriggerHealthCheck()
-  const cleanDuplicatesMutation = useBookmarksControllerCleanDuplicates()
-
   // Sync mount status
   useEffect(() => {
     setMounted(true)
@@ -527,12 +418,6 @@ function CabinetWorkspace() {
   const addTagsToSelection = async (names: string[]) => {
     setIsTagPopoverOpen(false)
     await handleBulkAddTags(names)
-    const overview = queryClient.getQueryData<{ onboarding: { organized: boolean } }>(["activity-overview", user?.id])
-    if (guidedOrganization.current && overview?.onboarding.organized) {
-      guidedOrganization.current = false
-      setSelectedBookmarkIds([])
-      setIsBulkSheetOpen(false)
-    }
   }
 
   const handleLogout = async () => {
@@ -546,47 +431,11 @@ function CabinetWorkspace() {
     }
   }
 
-  const handleEditFolder = (folder: any) => {
-    setFolderToEdit(folder)
-    folderForm.setFieldValue("name", folder.name)
-    folderForm.setFieldValue("description", folder.description || "")
-    folderForm.setFieldValue("parentId", folder.parentId || "")
-    setIsFolderModalOpen(true)
-  }
-
-  const handleDeleteFolder = async (id: string) => {
-    const isConfirmed = await confirm({
-      title: "Delete Folder",
-      description:
-        "Are you sure you want to delete this folder? All subfolders and bookmarks inside it will be soft-deleted.",
-      actionLabel: "Delete",
-      variant: "destructive",
-    })
-    if (isConfirmed) {
-      try {
-        await removeFolderMutation.mutateAsync({ id })
-        invalidateAllQueries()
-        if (selectedFolderId === id) {
-          setSelectedFolderId(undefined)
-        }
-      } catch {
-        toast.error("Failed to delete folder")
-      }
-    }
-  }
-
-  const handleCreateSubfolder = (parentId: string) => {
-    setFolderToEdit(null)
-    folderForm.reset()
-    folderForm.setFieldValue("parentId", parentId)
-    setIsFolderModalOpen(true)
-  }
-
   const handleScan = async () => {
     try {
       await scanHealthMutation.mutateAsync()
       invalidateAllQueries()
-      toast.success("Link check queued", { action: { label: "View activity", onClick: () => router.push("/cabinet/activity") } })
+      toast.success("Link check queued")
     } catch {
       toast.error("Failed to start link status scan.")
     }
@@ -609,30 +458,6 @@ function CabinetWorkspace() {
     }
   }
 
-  const resetFolderForm = () => {
-    setFolderToEdit(null)
-    folderForm.reset()
-  }
-
-  const handleEditBookmark = (bookmark: any) => {
-    // Notes and drawings open in their own editors.
-    const path = editorPath(bookmark)
-    if (path) {
-      router.push(path)
-      return
-    }
-    setBookmarkToEdit(bookmark)
-    bookmarkForm.setFieldValue("url", bookmark.url || "")
-    bookmarkForm.setFieldValue("title", bookmark.title || "")
-    bookmarkForm.setFieldValue("description", bookmark.description || "")
-    bookmarkForm.setFieldValue("folderId", bookmark.folderId || "")
-    bookmarkForm.setFieldValue(
-      "tags",
-      bookmark.tags?.map((t: any) => `#${t.name}`) || []
-    )
-    setIsBookmarkModalOpen(true)
-  }
-
   const handleDeleteTag = async (id: string) => {
     try {
       const tagToDelete = tags.find((t: any) => t.id === id)
@@ -647,121 +472,17 @@ function CabinetWorkspace() {
     }
   }
 
-  const resetBookmarkForm = () => {
-    setBookmarkToEdit(null)
-    bookmarkForm.reset()
-    bookmarkForm.setFieldValue("url", "")
-    bookmarkForm.setFieldValue("title", "")
-    bookmarkForm.setFieldValue("description", "")
-    bookmarkForm.setFieldValue("folderId", addTargetFolderId || "")
-    bookmarkForm.setFieldValue("tags", [])
-  }
-
-  const handleCreateNote = () => {
-    resetBookmarkForm()
-    const params = new URLSearchParams({ new: '1' })
-    if (addTargetFolderId) params.set('folder', addTargetFolderId)
-    router.push(`/cabinet/notes/${crypto.randomUUID()}?${params}`)
-  }
-
-  const handleCreateDrawing = () => {
-    const params = new URLSearchParams({ new: '1' })
-    if (addTargetFolderId) params.set('folder', addTargetFolderId)
-    router.push(`/cabinet/drawings/${crypto.randomUUID()}?${params}`)
-  }
-
-  // Productivity Keyboard Shortcuts (Linear / Superhuman style):
-  // N: new note, B: new bookmark, /: focus search, 1 & 2: switch view, ⌘B: toggle sidebar
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      // Esc leaves selection mode unless a dialog, menu, or field handles it first.
-      if (
-        e.key === "Escape" &&
-        !e.defaultPrevented &&
-        selectedBookmarkIds.length > 0 &&
-        !target?.closest("input, textarea, [contenteditable='true'], [role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']")
-      ) {
-        setSelectedBookmarkIds([])
-        return
-      }
-      if (
-        !target ||
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target.isContentEditable ||
-        target.closest("input, textarea, [contenteditable='true'], [role='dialog'], [role='alertdialog']")
-      ) {
-        return
-      }
-
-      if (
-        isBookmarkModalOpen ||
-        isFolderModalOpen ||
-        isMobileAddOpen ||
-        !!downloadBookmark
-      ) {
-        return
-      }
-
-      // ⌘B / Ctrl+B: Toggle Sidebar
-
-      // Do not trigger single-key actions when meta, ctrl, or alt modifier keys are pressed
-      if (e.metaKey || e.ctrlKey || e.altKey) {
-        return
-      }
-
-      // N: Create New Note
-      if (e.key.toLowerCase() === "n") {
-        e.preventDefault()
-        handleCreateNote()
-        return
-      }
-
-      // D: New drawing
-      if (e.key.toLowerCase() === "d") {
-        e.preventDefault()
-        handleCreateDrawing()
-        return
-      }
-
-      // B: Add New Bookmark
-      if (e.key.toLowerCase() === "b") {
-        e.preventDefault()
-        resetBookmarkForm()
-        setIsBookmarkModalOpen(true)
-        return
-      }
-
-      // /: Focus Search input
-      if (e.key === "/") {
-        e.preventDefault()
-        const searchInput = document.getElementById("cabinet-search-input") as HTMLInputElement | null
-        if (searchInput) {
-          searchInput.focus()
-          searchInput.select()
-        }
-        return
-      }
-
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [
-    router,
-    selectedFolderId,
-    resetBookmarkForm,
-    setIsBookmarkModalOpen,
-    isBookmarkModalOpen,
-    isFolderModalOpen,
-    isMobileAddOpen,
-    downloadBookmark,
-    selectedBookmarkIds.length,
-    // New notes and drawings land in the current folder when it accepts them.
-    handleCreateNote,
-    handleCreateDrawing,
-  ])
+  // Keyboard Shortcuts (N: new note, D: new drawing, B: new bookmark, /: focus search, Esc: clear selection)
+  useCabinetShortcuts({
+    onNewNote: handleCreateNote,
+    onNewDrawing: handleCreateDrawing,
+    onNewBookmark: () => {
+      resetBookmarkForm()
+      setIsBookmarkModalOpen(true)
+    },
+    onEscape: selectedBookmarkIds.length > 0 ? () => setSelectedBookmarkIds([]) : undefined,
+    isAnyModalOpen: isBookmarkModalOpen || isFolderModalOpen || isMobileAddOpen || !!downloadBookmark,
+  })
 
   const handleToggleSelectBookmark = (id: string) => {
     setSelectedBookmarkIds((prev) =>
@@ -772,7 +493,6 @@ function CabinetWorkspace() {
   const handleClearSelection = () => {
     setSelectedBookmarkIds([])
     setIsTagPopoverOpen(false)
-    guidedOrganization.current = false
   }
 
   const isAllSelected =
@@ -988,17 +708,6 @@ function CabinetWorkspace() {
               <SearchQueryContext.Provider value={searchDebounced}>
               <BookmarkList
                 title={activeFilterLabel}
-                intro={activity && !selectedFolderId && !selectedTag && !currentView && !searchQuery && formatFilter === "all" && !domain && !addedAfter && !addedBefore ? <GettingStarted progress={activity.onboarding}
-                  onSave={() => { resetBookmarkForm(); isMobile ? setIsMobileAddOpen(true) : setIsBookmarkModalOpen(true) }}
-                  onOrganize={() => {
-                    const item = bookmarks.find((item: any) => item.canEdit !== false)
-                    if (!item) { resetBookmarkForm(); isMobile ? setIsMobileAddOpen(true) : setIsBookmarkModalOpen(true); return }
-                    guidedOrganization.current = true
-                    setSelectedBookmarkIds([item.id])
-                    if (isMobile) setIsBulkSheetOpen(true)
-                    else setIsTagPopoverOpen(true)
-                  }}
-                /> : undefined}
                 searchQuery={searchQuery}
                 onClearSearch={() => setSearchQuery("")}
                 onAddBookmark={canAddHere ? () => { resetBookmarkForm(); setIsBookmarkModalOpen(true) } : undefined}

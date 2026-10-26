@@ -267,19 +267,21 @@ export function useBookmarkMutations({
     async (isArchived = true) => {
       const ids = selectedBookmarkIds
       if (ids.length === 0) return
+      ids.forEach((id) => updateBookmarkInCache(id, (b) => ({ ...b, isArchived })))
+      setSelectedBookmarkIds([])
       try {
         await AXIOS_INSTANCE.post("/v1/bookmarks/bulk/archive", { ids, isArchived })
         invalidateAllQueries()
-        setSelectedBookmarkIds([])
         toastWithUndo(
           `${isArchived ? "Archived" : "Unarchived"} ${countLabel(ids.length)}`,
           () => AXIOS_INSTANCE.post("/v1/bookmarks/bulk/archive", { ids, isArchived: !isArchived })
         )
       } catch {
+        invalidateAllQueries()
         toast.error("Failed to update archive status")
       }
     },
-    [selectedBookmarkIds, invalidateAllQueries, setSelectedBookmarkIds, toastWithUndo]
+    [selectedBookmarkIds, updateBookmarkInCache, invalidateAllQueries, setSelectedBookmarkIds, toastWithUndo]
   )
 
   /** Moves items into a folder (or the root) and offers to put each one back where it was. */
@@ -296,12 +298,11 @@ export function useBookmarkMutations({
         toast.info(`Already in ${folderName ? `"${folderName}"` : "this folder"}`)
         return
       }
-      const toastId = toast.loading(`Moving ${countLabel(ids.length)}…`)
+      ids.forEach((id) => updateBookmarkInCache(id, (b) => ({ ...b, folderId })))
+      setSelectedBookmarkIds([])
       try {
         await AXIOS_INSTANCE.post("/v1/bookmarks/bulk/move", { ids, folderId })
         invalidateAllQueries()
-        setSelectedBookmarkIds([])
-        toast.dismiss(toastId)
         toastWithUndo(
           `Moved ${countLabel(ids.length)} to ${folderName ? `"${folderName}"` : "Unfiled"}`,
           () =>
@@ -312,10 +313,11 @@ export function useBookmarkMutations({
             )
         )
       } catch {
-        toast.error("Failed to move items", { id: toastId })
+        invalidateAllQueries()
+        toast.error("Failed to move items")
       }
     },
-    [getBookmark, invalidateAllQueries, setSelectedBookmarkIds, toastWithUndo]
+    [getBookmark, updateBookmarkInCache, invalidateAllQueries, setSelectedBookmarkIds, toastWithUndo]
   )
 
   const handleBulkMove = useCallback(
@@ -348,17 +350,20 @@ export function useBookmarkMutations({
       variant: "destructive",
     })
     if (!isConfirmed) return
+    selectedBookmarkIds.forEach((id) => removeBookmarkFromCache(id))
+    const idsToDelete = [...selectedBookmarkIds]
+    setSelectedBookmarkIds([])
     try {
       await AXIOS_INSTANCE.post("/v1/bookmarks/bulk/permanent-delete", {
-        ids: selectedBookmarkIds,
+        ids: idsToDelete,
       })
       invalidateAllQueries()
-      setSelectedBookmarkIds([])
       toast.success("Selected bookmarks permanently deleted")
     } catch {
+      invalidateAllQueries()
       toast.error("Failed to delete some bookmarks")
     }
-  }, [confirm, selectedBookmarkIds, invalidateAllQueries, setSelectedBookmarkIds])
+  }, [confirm, selectedBookmarkIds, removeBookmarkFromCache, invalidateAllQueries, setSelectedBookmarkIds])
 
   return {
     toggleFavorite,

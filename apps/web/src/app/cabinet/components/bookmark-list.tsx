@@ -248,14 +248,14 @@ export function BookmarkList({
                       }
 
   return (
-    <div ref={containerRef} className="flex min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="break-words text-2xl font-semibold leading-8 tracking-tight text-foreground">
+    <div ref={containerRef} className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <h1 className="break-words text-xl font-semibold leading-7 tracking-tight text-foreground sm:text-2xl">
               {isDuplicatesView ? "Duplicate Groups" : title || getHeaderTitle()}
             </h1>
-            <p className="mt-1 break-words text-sm tabular-nums text-muted-foreground" aria-live="polite">
+            <p className="break-words text-xs tabular-nums text-muted-foreground sm:text-sm" aria-live="polite">
               {isBookmarksLoading ? "Loading your collection…" : isBookmarksError ? "Collection unavailable" : isDuplicatesView
                 ? `${duplicateGroups?.length || 0} duplicate URL groups`
                 : `${(totalBookmarks ?? bookmarks.length).toLocaleString()} ${(totalBookmarks ?? bookmarks.length) === 1 ? "item" : "items"}${searchQuery ? ` matching “${searchQuery}”` : ""}`}

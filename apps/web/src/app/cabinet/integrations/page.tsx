@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
 import {
@@ -33,7 +32,6 @@ import {
 
 export default function IntegrationsPage() {
   const queryClient = useQueryClient()
-  const router = useRouter()
   const [guide, setGuide] = useState("chrome")
   const [queuedTask, setQueuedTask] = useState<string | null>(null)
   useEffect(() => {
@@ -63,8 +61,7 @@ export default function IntegrationsPage() {
       const task = res?.data ?? res
       if (!task?.id) throw new Error("Server tidak mengembalikan status impor.")
       setQueuedTask(task.id)
-      queryClient.invalidateQueries({ queryKey: ["activity-overview"] })
-      toast.success("Impor masuk antrean. Anda boleh meninggalkan halaman ini.", { id: toastId, action: { label: "Lihat progres", onClick: () => router.push("/cabinet/activity") } })
+      toast.success("Impor masuk antrean. Anda boleh meninggalkan halaman ini.", { id: toastId })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal memulai impor. Pastikan format berkas valid.", { id: toastId })
     } finally {
@@ -112,7 +109,7 @@ export default function IntegrationsPage() {
         </div>
       </header>
 
-      {queuedTask && <Alert><AlertTitle>Impor sedang diproses di latar belakang</AlertTitle><AlertDescription>Bookmark yang sudah tersimpan tetap aman jika proses perlu diulang. <Link href="/cabinet/activity" className="underline underline-offset-4">Lihat progres dan status impor</Link></AlertDescription></Alert>}
+      {queuedTask && <Alert><AlertTitle>Impor sedang diproses di latar belakang</AlertTitle><AlertDescription>Bookmark yang sudah tersimpan tetap aman jika proses perlu diulang.</AlertDescription></Alert>}
       {/* Direct Interactive Dropzone Area */}
       <section aria-labelledby="quick-import-heading" className="flex flex-col gap-3">
         <h2 id="quick-import-heading" className="text-base font-medium text-foreground">

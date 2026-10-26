@@ -14,9 +14,6 @@ import {
   Star,
   Archive,
   FolderPlus,
-  Copy,
-  Warning,
-  ArrowClockwise,
   Trash,
   Gear,
   PlugsConnected,
@@ -25,7 +22,6 @@ import {
   Moon,
   Desktop,
   SignOut,
-  ClockCounterClockwise,
 } from "@phosphor-icons/react"
 import { AXIOS_INSTANCE } from "@/lib/api-client"
 import { toast } from "@/components/ui/sonner"
@@ -83,7 +79,7 @@ interface SidebarFiltersProps {
   onSelectType?: (type: "BOOKMARK" | "NOTE" | "DRAWING" | undefined) => void
   onSelectContentType?: (type: string | undefined) => void
   healthSummary?: any
-  onScan: () => void
+  onScan?: () => void
   resetFolderForm: () => void
   onItemSelect?: () => void
   viewSection?: "all" | "folders" | "library"
@@ -292,58 +288,6 @@ export function CabinetSidebarFilters({
                 onSelectTrash?.(true)
                 onSelectType?.(undefined)
                 onSelectContentType?.(undefined)
-                onItemSelect?.()
-              }}
-            />
-          </WorkspaceSidebarGroup>
-
-          {/* Health / Maintenance Group */}
-          <WorkspaceSidebarGroup
-            title="Health"
-            menu
-            action={
-              <button
-                type="button"
-                onClick={onScan}
-                title="Check links now"
-                aria-label="Check links now"
-                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              >
-                <ArrowClockwise className="h-3 w-3" />
-              </button>
-            }
-          >
-            <WorkspaceSidebarItem icon={<ClockCounterClockwise className="size-4" />} label="Activity" onClick={() => { router.push("/cabinet/activity"); onItemSelect?.() }} />
-            <WorkspaceSidebarItem
-              icon={<Warning className={cn("size-4", healthSummary?.broken > 0 && "text-destructive")} />}
-              label="Broken links"
-              badge={healthSummary?.broken || undefined}
-              isActive={filterBroken === true}
-              onClick={() => {
-                onSelectFolder(undefined)
-                onSelectTag(undefined)
-                onSelectFavorite(undefined)
-                onSelectArchived(undefined)
-                onSelectBroken(true)
-                onSelectDuplicates(undefined)
-                onSelectTrash?.(undefined)
-                onItemSelect?.()
-              }}
-            />
-
-            <WorkspaceSidebarItem
-              icon={<Copy className="h-3.5 w-3.5" />}
-              label="Duplicates"
-              badge={healthSummary?.duplicates || undefined}
-              isActive={filterDuplicates === true}
-              onClick={() => {
-                onSelectFolder(undefined)
-                onSelectTag(undefined)
-                onSelectFavorite(undefined)
-                onSelectArchived(undefined)
-                onSelectBroken(undefined)
-                onSelectDuplicates(true)
-                onSelectTrash?.(undefined)
                 onItemSelect?.()
               }}
             />

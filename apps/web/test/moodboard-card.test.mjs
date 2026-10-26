@@ -28,13 +28,13 @@ try {
 }
 
 const noop = () => {}
-const render = (bookmark, density) => renderToStaticMarkup(React.createElement(MoodboardCard, {
+const render = (bookmark, density, isSelected = false) => renderToStaticMarkup(React.createElement(MoodboardCard, {
   showActions: false,
   nativeDrag: false,
   displayPreferences: { density, showTitle: true, showDescription: true, showImage: true, showWebsite: true, showFolder: true, showDate: true },
   bookmark: { id: "card", userId: "owner", canEdit: true, folderId: "folder", createdAt: "2026-10-18T10:00:00Z", tags: [{ id: "design", name: "design" }], metadataStatus: "COMPLETED", ...bookmark },
   folders: [{ id: "folder", name: "Design references" }],
-  isSelected: false, onToggleSelect: noop, onSelectTag: noop, onToggleFavorite: noop, onToggleArchive: noop,
+  isSelected, onToggleSelect: noop, onSelectTag: noop, onToggleFavorite: noop, onToggleArchive: noop,
   onEditBookmark: noop, onDeleteBookmark: noop, onDuplicateBookmark: noop,
   getHostname: (url) => (url ? new URL(url).hostname : ""),
 }))
@@ -48,13 +48,44 @@ test("visual cards show the preview with only the title as a caption", () => {
   for (const detail of [/A complete sourcebook/, /Design references/, /#design/, /<time/]) assert.doesNotMatch(html, detail)
 })
 
+test("PDF cards use the loaded document page ratio instead of a fixed frame", () => {
+  for (const density of ["visual", "comfortable"]) {
+    const html = render({ ...link, url: "https://cdn.example.com/document.pdf" }, density)
+    assert.match(html, /style="aspect-ratio:1\.6"/)
+  }
+})
+
+test("selected visual cards keep their olive outline inside the preview edge", () => {
+  const html = render(link, "visual", true)
+  assert.match(html, /ring-2 ring-inset ring-library-olive/)
+})
+
+test("hidden thumbnails load eagerly so onLoad can reveal them", () => {
+  for (const density of ["visual", "compact", "comfortable"]) {
+    const html = render(link, density)
+    const image = html.match(/<img\b[^>]*>/)?.[0]
+    assert.ok(image, `Missing thumbnail for ${density}`)
+    assert.match(image, /loading="eager"/)
+    assert.match(image, /decoding="async"/)
+  }
+})
+
 test("visual links without a picture set the site and title as a type-only card", () => {
   const html = render({ ...link, imageUrl: null, siteName: "Forbes" }, "visual")
   assert.doesNotMatch(html, /<img/)
   assert.match(html, /font-serif[^"]*">Forbes</)
-  assert.match(html, /font-serif[^"]*">Japanese Design Since 1945</)
-  // The title already sits in the card, so it is not repeated as a caption.
-  assert.equal(html.match(/Japanese Design Since 1945</g).length, 1)
+  assert.match(html, /<p[^>]*>Japanese Design Since 1945</)
+  // Type-only links use the same caption row as image cards.
+
+  // When title equals hostname (e.g. "docs.google.com" at root), do not duplicate it twice.
+  const rootDomain = render({ ...link, title: "docs.google.com", url: "https://docs.google.com/", imageUrl: null, siteName: null }, "visual")
+  assert.equal(rootDomain.match(/docs\.google\.com</g).length, 1)
+  assert.match(rootDomain, /<p[^>]*>docs\.google\.com</)
+
+  // When title equals hostname on a deep link, show the URL path instead of repeating the domain.
+  const deepDomain = render({ ...link, title: "medium.com", url: "https://medium.com/@author/tiptap-vs-lexical", imageUrl: null, siteName: null }, "visual")
+  assert.match(deepDomain, /medium\.com</)
+  assert.match(deepDomain, /<p[^>]*>@author\/tiptap-vs-lexical</)
 })
 
 test("visual cards flag broken links and keep note titles reachable", () => {

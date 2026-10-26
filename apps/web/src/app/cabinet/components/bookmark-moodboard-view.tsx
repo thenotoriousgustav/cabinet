@@ -258,7 +258,7 @@ function NoteContentPreview({ bookmark }: { bookmark: any }) {
   )
 }
 
-function PdfPagePreview({ src, onRatio }: { src: string; onRatio: (ratio: number) => void }) {
+function PdfPagePreview({ src, bookmarkId, onRatio }: { src: string; bookmarkId: string; onRatio: (ratio: number) => void }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
 
   React.useEffect(() => {
@@ -267,6 +267,11 @@ function PdfPagePreview({ src, onRatio }: { src: string; onRatio: (ratio: number
 
     void (async () => {
       try {
+        try {
+          const cachedRatio = Number(localStorage.getItem(`cabinet.pdf-ratio:${bookmarkId}`))
+          if (!cancelled && Number.isFinite(cachedRatio) && cachedRatio > 0 && cachedRatio < 100) onRatio(cachedRatio)
+        } catch {}
+
         const pdfjs = await import("pdfjs-dist")
         pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
         const pdf = await pdfjs.getDocument({ url: src, withCredentials: true }).promise
@@ -274,7 +279,9 @@ function PdfPagePreview({ src, onRatio }: { src: string; onRatio: (ratio: number
         if (cancelled || !canvasRef.current) return
 
         const pageSize = page.getViewport({ scale: 1 })
-        onRatio(pageSize.width / pageSize.height)
+        const ratio = pageSize.width / pageSize.height
+        onRatio(ratio)
+        try { localStorage.setItem(`cabinet.pdf-ratio:${bookmarkId}`, String(ratio)) } catch {}
         const viewport = page.getViewport({ scale: 1.5 })
         const canvas = canvasRef.current
         const context = canvas.getContext("2d")
@@ -293,7 +300,7 @@ function PdfPagePreview({ src, onRatio }: { src: string; onRatio: (ratio: number
       cancelled = true
       cancelRender?.()
     }
-  }, [src, onRatio])
+  }, [src, bookmarkId, onRatio])
 
   return <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 m-auto h-full w-full bg-white object-contain" />
 }
@@ -350,6 +357,24 @@ export function MoodboardCard({
       onOpen: () => (onInspectBookmark ?? onEditBookmark)(bookmark),
     })
 
+  const cleanHost = hostname.replace(/^www\./, "")
+  const siteLabel = bookmark.siteName || cleanHost
+  const rawTitle = (bookmark.title || "").trim()
+  const titleDuplicatesHost =
+    !rawTitle ||
+    rawTitle.toLowerCase() === hostname.toLowerCase() ||
+    rawTitle.toLowerCase() === cleanHost.toLowerCase() ||
+    rawTitle.toLowerCase() === siteLabel.toLowerCase()
+  const typeOnlyHeadline = React.useMemo(() => {
+    if (!titleDuplicatesHost) return rawTitle
+    try {
+      const parsed = new URL(bookmark.url || "")
+      const path = decodeURIComponent(parsed.pathname).replace(/^\/+|\/+$/g, "")
+      if (path) return path
+    } catch {}
+    return cleanHost || rawTitle || bookmark.url || "Untitled link"
+  }, [titleDuplicatesHost, rawTitle, bookmark.url, cleanHost])
+
   const rawImageUrl = bookmark.imageUrl || ""
   const isPendingEnrichment =
     !inCabinet &&
@@ -365,7 +390,7 @@ export function MoodboardCard({
   const [imageStatus, setImageStatus] = React.useState<
     "loading" | "ready" | "error"
   >(rawImageUrl || isPendingEnrichment ? "loading" : "error")
-  const [pdfAspectRatio, setPdfAspectRatio] = React.useState(3 / 4)
+  const [pdfAspectRatio, setPdfAspectRatio] = React.useState(16 / 10)
 
   React.useEffect(() => {
     const nextProxied = getProxiedImageUrl(bookmark.imageUrl)
@@ -479,7 +504,7 @@ export function MoodboardCard({
       {showActions && own && <div data-bookmark-actions
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "absolute top-2.5 left-2.5 z-20 flex items-center gap-1 rounded-sm bg-card p-1 transition-opacity",
+          "absolute top-2.5 left-2.5 z-20 flex items-center gap-1 rounded-sm border border-border/60 bg-card/95 p-1 shadow-xs transition-opacity",
           isSelected || hasSelectedItems
             ? "opacity-100"
             : "hidden focus-within:opacity-100 sm:flex sm:opacity-0 sm:group-hover/card:opacity-100"
@@ -508,7 +533,7 @@ export function MoodboardCard({
         <div
           data-bookmark-actions
           onClick={(e) => e.stopPropagation()}
-          className="absolute top-2.5 right-2.5 z-20 hidden items-center gap-0.5 rounded-sm bg-card p-0.5 transition-opacity sm:flex sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100"
+          className="absolute top-2.5 right-2.5 z-20 hidden items-center gap-0.5 rounded-sm border border-border/60 bg-card/95 p-0.5 shadow-xs transition-opacity sm:flex sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100"
         >
         {isTrashView ? (
           <>
@@ -643,11 +668,11 @@ export function MoodboardCard({
 
   if (preferences.density === "visual") {
     const showPicture = !inCabinet && preferences.showImage && imageStatus !== "error"
-    // A link without a usable picture becomes a type-only card that carries its own title.
+    // Type-only links use their URL-derived headline as the caption beneath the card.
     const typeOnly = !inCabinet && !showPicture && !isPdf
     // A quote is credited to its site, the way a pull quote names its source.
-    const caption = (preferences.showTitle || isPdf) && !typeOnly
-      ? quote ? hostname.replace(/^www\./, "") : bookmark.title || (isDrawing ? "Untitled drawing" : isNote ? "Untitled note" : hostname)
+    const caption = (preferences.showTitle || isPdf)
+      ? quote ? hostname.replace(/^www\./, "") : typeOnly ? typeOnlyHeadline : bookmark.title || (isDrawing ? "Untitled drawing" : isNote ? "Untitled note" : hostname)
       : ""
     const linkStatus = inCabinet ? "" : bookmark.status === "BROKEN" ? "Broken" : bookmark.status === "REDIRECTED" ? "Redirected" : ""
     const mobileActions = showActions && onOpenActionSheet && access !== "viewer"
@@ -661,7 +686,7 @@ export function MoodboardCard({
         <div
           className={cn(
             "relative w-full overflow-hidden rounded-lg bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-18px_rgb(0_0_0/0.28)] transition-shadow group-hover/card:shadow-[0_1px_2px_rgb(0_0_0/0.05),0_18px_40px_-18px_rgb(0_0_0/0.36)] motion-reduce:transition-none dark:shadow-none",
-            isSelected ? "ring-2 ring-library-olive" : "dark:ring-1 dark:ring-border/60"
+            isSelected ? "ring-2 ring-inset ring-library-olive" : "dark:ring-1 dark:ring-border/60"
           )}
         >
           {overlays}
@@ -679,7 +704,7 @@ export function MoodboardCard({
           ) : isDrawing ? (
             <div onClick={activate} className="flex aspect-[16/10] w-full items-center justify-center bg-white dark:hue-rotate-180 dark:invert">
               {bookmark.imageUrl
-                ? <img src={bookmark.imageUrl} alt="" draggable={false} className="h-full w-full object-contain p-3" />
+                ? <img src={bookmark.imageUrl} alt="" draggable={false} loading="lazy" decoding="async" className="h-full w-full object-contain p-3" />
                 : <span className="text-xs text-neutral-500">Empty drawing</span>}
             </div>
           ) : isPdf ? (
@@ -694,7 +719,7 @@ export function MoodboardCard({
               style={{ aspectRatio: pdfAspectRatio }}
             >
               {originalHref ? (
-                <PdfPagePreview src={originalHref} onRatio={setPdfAspectRatio} />
+                <PdfPagePreview src={originalHref} bookmarkId={bookmark.id} onRatio={setPdfAspectRatio} />
               ) : (
                 <div className="flex size-12 items-center justify-center rounded-lg bg-card shadow-xs">
                   <FilePdf className="size-7 text-destructive" />
@@ -723,11 +748,14 @@ export function MoodboardCard({
                     <img
                       ref={imageRef}
                       draggable={false}
+                      // Hidden until onLoad; lazy loading would wait for visibility forever.
+                      loading="eager"
+                      decoding="async"
                       src={currentSrc}
                       alt={bookmark.title || hostname}
                       onLoad={() => setImageStatus("ready")}
                       onError={handleImageError}
-                      className={cn("block h-auto max-h-[36rem] w-full object-cover", imageStatus === "ready" ? "opacity-100" : "hidden")}
+                      className={cn("block h-auto max-h-[36rem] w-full object-cover transition-opacity duration-200 motion-reduce:transition-none", imageStatus === "ready" ? "opacity-100" : "hidden")}
                     />
                   )}
                   {isVideo && imageStatus === "ready" && (
@@ -737,9 +765,8 @@ export function MoodboardCard({
                   )}
                 </>
               ) : (
-                <span className="flex min-h-36 flex-col gap-3 p-6">
-                  {showWebsite && <span className="truncate font-serif text-base text-muted-foreground">{bookmark.siteName || hostname.replace(/^www\./, "")}</span>}
-                  {preferences.showTitle && <span className="line-clamp-4 font-serif text-xl leading-snug text-foreground"><SearchHighlight text={bookmark.title || bookmark.url} /></span>}
+                <span className="flex min-h-36 flex-col justify-between gap-3 p-6">
+                  {showWebsite && (!titleDuplicatesHost || typeOnlyHeadline !== siteLabel) && <span className="truncate font-serif text-base text-muted-foreground">{siteLabel}</span>}
                 </span>
               )}
             </a>
@@ -798,7 +825,7 @@ export function MoodboardCard({
             className={cn("relative flex aspect-[16/10] w-full cursor-pointer items-center justify-center overflow-hidden bg-white dark:hue-rotate-180 dark:invert", showActions && "pt-8")}
           >
             {bookmark.imageUrl ? (
-              <img src={bookmark.imageUrl} alt="" draggable={false} className="h-full w-full object-contain p-3" />
+              <img src={bookmark.imageUrl} alt="" draggable={false} loading="lazy" decoding="async" className="h-full w-full object-contain p-3" />
             ) : (
               <span className="text-xs text-neutral-500">Empty drawing</span>
             )}
@@ -814,7 +841,7 @@ export function MoodboardCard({
             className="group/header relative block w-full overflow-hidden bg-muted/20"
           >
             <div className="relative w-full overflow-hidden bg-white" style={{ aspectRatio: pdfAspectRatio }}>
-              {originalHref ? <PdfPagePreview src={originalHref} onRatio={setPdfAspectRatio} /> : <div className="flex h-full min-h-28 items-center justify-center"><FilePdf className="size-8 text-muted-foreground" /></div>}
+              {originalHref ? <PdfPagePreview src={originalHref} bookmarkId={bookmark.id} onRatio={setPdfAspectRatio} /> : <div className="flex h-full min-h-28 items-center justify-center"><FilePdf className="size-8 text-muted-foreground" /></div>}
             </div>
           </a>
         ) : preferences.showImage ? (
@@ -853,6 +880,9 @@ export function MoodboardCard({
                 <img
                   ref={imageRef}
                   draggable={false}
+                  // Hidden until onLoad; lazy loading would wait for visibility forever.
+                  loading="eager"
+                  decoding="async"
                   src={currentSrc}
                   alt={bookmark.title || hostname}
                   onLoad={() => setImageStatus("ready")}

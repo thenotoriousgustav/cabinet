@@ -28,6 +28,19 @@ export function useBookmarkCache() {
           }
         }
       )
+      queryClient.setQueriesData(
+        { queryKey: ["/v1/bookmarks"] },
+        (oldData: any) => {
+          if (!oldData) return oldData
+          const dataArray = oldData.data?.data || oldData.data
+          if (!Array.isArray(dataArray)) return oldData
+          const updated = dataArray.map((b: any) => (b.id === id ? updater(b) : b))
+          if (oldData.data?.data) {
+            return { ...oldData, data: { ...oldData.data, data: updated } }
+          }
+          return { ...oldData, data: updated }
+        }
+      )
     },
     [queryClient]
   )
@@ -53,6 +66,26 @@ export function useBookmarkCache() {
               }
             }),
           }
+        }
+      )
+      queryClient.setQueriesData(
+        { queryKey: ["/v1/bookmarks"] },
+        (oldData: any) => {
+          if (!oldData) return oldData
+          const dataArray = oldData.data?.data || oldData.data
+          if (!Array.isArray(dataArray)) return oldData
+          const filtered = dataArray.filter((b: any) => b.id !== id)
+          if (oldData.data?.data) {
+            return {
+              ...oldData,
+              data: {
+                ...oldData.data,
+                data: filtered,
+                totalCount: Math.max(0, (oldData.data?.totalCount || 1) - 1),
+              },
+            }
+          }
+          return { ...oldData, data: filtered }
         }
       )
     },
