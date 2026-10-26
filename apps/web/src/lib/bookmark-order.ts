@@ -2,6 +2,7 @@ import type { BookmarksControllerFindAllSort } from "@cabinet/api-client"
 
 export const bookmarkSortOptions = [
   { value: "custom", label: "Custom Order (Drag & Drop)" },
+  { value: "relevance", label: "Best matches" },
   { value: "newest", label: "Newest First" },
   { value: "oldest", label: "Oldest First" },
   { value: "title", label: "Alphabetical (A-Z)" },

@@ -3,7 +3,7 @@
 // secondary refinements stay in the query (?tag, ?format, ?q, ?sort).
 export const cabinetViews = ["favorites", "archive", "trash", "broken", "duplicates"] as const
 export type CabinetView = (typeof cabinetViews)[number]
-export type CabinetFormat = "all" | "links" | "notes" | "drawings" | "media"
+export type CabinetFormat = "all" | "links" | "notes" | "drawings" | "media" | "documents"
 
 export interface CabinetLocation {
   folderId?: string
@@ -12,10 +12,13 @@ export interface CabinetLocation {
   format?: CabinetFormat
   q?: string
   sort?: string
+  domain?: string
+  addedAfter?: string
+  addedBefore?: string
 }
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
-const formats = ["all", "links", "notes", "drawings", "media"]
+const formats = ["all", "links", "notes", "drawings", "media", "documents"]
 const isView = (value: unknown): value is CabinetView => cabinetViews.includes(value as CabinetView)
 const cleanTag = (tag?: string | null) => tag?.trim().replace(/^#/, "") || undefined
 const decode = (value: string) => {
@@ -42,10 +45,13 @@ export function parseCabinetLocation(pathname: string, search: string): CabinetL
     format: formats.includes(format ?? "") ? (format as CabinetFormat) : undefined,
     q: params.get("q") || undefined,
     sort: params.get("sort") || undefined,
+    domain: params.get("domain") || undefined,
+    addedAfter: params.get("after") || undefined,
+    addedBefore: params.get("before") || undefined,
   }
 }
 
-export function buildCabinetUrl({ folderId, tag, view, format, q, sort }: CabinetLocation) {
+export function buildCabinetUrl({ folderId, tag, view, format, q, sort, domain, addedAfter, addedBefore }: CabinetLocation) {
   let path = "/cabinet"
   let queryTag = tag
   if (folderId) path += `/folders/${folderId}`
@@ -60,6 +66,9 @@ export function buildCabinetUrl({ folderId, tag, view, format, q, sort }: Cabine
   if (format && format !== "all") params.set("format", format)
   if (q?.trim()) params.set("q", q.trim())
   if (sort && sort !== "custom") params.set("sort", sort)
+  if (domain?.trim()) params.set("domain", domain.trim())
+  if (addedAfter) params.set("after", addedAfter)
+  if (addedBefore) params.set("before", addedBefore)
   const qs = params.toString()
   return { path, url: qs ? `${path}?${qs}` : path }
 }

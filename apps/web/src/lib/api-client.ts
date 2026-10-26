@@ -27,6 +27,8 @@ export {
   useFoldersControllerUpdate,
   useTagsControllerFindAll,
   useTagsControllerRemove,
+  useUploadsControllerUpload,
+  useUploadsControllerUploadBookmark,
 } from "@cabinet/api-client"
 export type { MediaFormat, MediaInfo } from "@cabinet/api-client"
 
@@ -48,6 +50,41 @@ export const cabinetMediaApi = {
       URL.revokeObjectURL(downloadUrl)
     }
   },
+}
+
+export async function uploadFileToR2(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+  const response = await AXIOS_INSTANCE.post("/v1/uploads", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return (response.data.data ?? response.data) as {
+    url: string
+    key: string
+    filename: string
+    contentType: string
+    size: number
+  }
+}
+
+export async function uploadBookmarkToR2(params: {
+  file: File
+  title?: string
+  description?: string
+  folderId?: string
+  tags?: string[]
+}) {
+  const formData = new FormData()
+  formData.append("file", params.file)
+  if (params.title?.trim()) formData.append("title", params.title.trim())
+  if (params.description?.trim()) formData.append("description", params.description.trim())
+  if (params.folderId) formData.append("folderId", params.folderId)
+  if (params.tags?.length) formData.append("tags", params.tags.join(","))
+
+  const response = await AXIOS_INSTANCE.post("/v1/uploads/bookmark", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return response.data.data ?? response.data
 }
 
 AXIOS_INSTANCE.defaults.baseURL =

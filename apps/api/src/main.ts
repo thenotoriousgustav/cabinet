@@ -11,6 +11,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { Request, Response, NextFunction } from 'express';
+import { RuntimeMetricsService } from './health/runtime-metrics.service';
 
 async function bootstrap() {
   // Configure Winston Logger
@@ -32,6 +34,17 @@ async function bootstrap() {
   });
 
   const app = await NestFactory.create(AppModule, { logger, bodyParser: false });
+
+  const metrics = app.get(RuntimeMetricsService);
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = process.hrtime.bigint();
+    res.once('finish', () => {
+      const route = typeof req.route?.path === 'string' ? req.route.path : 'unmatched';
+      const search = route === '/v1/bookmarks' && req.method === 'GET' && req.query.search ? ' [search]' : '';
+      metrics.request(`${req.method} ${route}${search}`, Number(process.hrtime.bigint() - start) / 1e6, res.statusCode >= 500);
+    });
+    next();
+  });
 
   // CORS
   app.enableCors({

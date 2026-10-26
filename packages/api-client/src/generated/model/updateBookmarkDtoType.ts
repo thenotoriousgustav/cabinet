@@ -15,4 +15,5 @@ export type UpdateBookmarkDtoType = typeof UpdateBookmarkDtoType[keyof typeof Up
 export const UpdateBookmarkDtoType = {
   BOOKMARK: 'BOOKMARK',
   NOTE: 'NOTE',
+  DRAWING: 'DRAWING',
 } as const;

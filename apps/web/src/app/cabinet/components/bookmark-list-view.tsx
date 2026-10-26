@@ -1,13 +1,14 @@
 import React from "react"
+import { SearchHighlight } from "./search-highlight"
 import { cn } from "@/lib/utils"
 import { startBookmarkDrag } from "@/lib/bookmark-drag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Star, PushPin, Archive, PencilSimple, Trash, Copy, DotsThreeVertical, LinkSimple, ArrowCounterClockwise, ArrowSquareOut, FileText, DownloadSimple, FolderSimple, Scribble } from "@phosphor-icons/react"
+import { Star, PushPin, Archive, PencilSimple, Trash, Copy, DotsThreeVertical, LinkSimple, ArrowCounterClockwise, ArrowSquareOut, FileText, FilePdf, DownloadSimple, FolderSimple, Scribble } from "@phosphor-icons/react"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/sonner"
-import { canDownloadMedia, isDrawingBookmark, isNoteBookmark, isVideoBookmark, itemAccess } from "@/lib/bookmark-kind"
+import { canDownloadMedia, isDrawingBookmark, isNoteBookmark, isVideoBookmark, isPdfBookmark, itemAccess } from "@/lib/bookmark-kind"
 import { activateBookmark, bookmarkOriginalHref } from "@/lib/bookmark-click"
 import { defaultDisplayPreferences, type DisplayPreferences } from "./display-preferences"
 import { Sortable, SortableContent, SortableItem } from "@/components/ui/sortable"
@@ -55,6 +56,7 @@ export function BookmarkListView({
           const isSelected = selectedBookmarkIds.includes(bookmark.id)
           const isNote = isNoteBookmark(bookmark)
           const isDrawing = isDrawingBookmark(bookmark)
+          const isPdf = isPdfBookmark(bookmark)
           const inCabinet = isNote || isDrawing
           const isVideo = isVideoBookmark(bookmark)
           const canDownload = canDownloadMedia(bookmark)
@@ -92,17 +94,17 @@ export function BookmarkListView({
                 </div>}
                 {!isTrashView && onTogglePin && own && <Button variant="ghost" size="icon-xs" onClick={(event) => { event.stopPropagation(); onTogglePin(bookmark) }} title={bookmark.isPinned ? "Unpin bookmark" : "Pin to top"} aria-label={bookmark.isPinned ? "Unpin bookmark" : "Pin to top"} aria-pressed={!!bookmark.isPinned}><PushPin weight={bookmark.isPinned ? "fill" : "regular"} /></Button>}
                 {preferences.showImage && <span className="hidden size-6 shrink-0 items-center justify-center text-muted-foreground sm:flex">
-                  {isDrawing ? <Scribble /> : isNote ? <FileText /> : <img src={bookmark.faviconUrl || `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="size-5 object-contain" onError={(event) => { event.currentTarget.style.visibility = "hidden" }} />}
+                  {isDrawing ? <Scribble /> : isNote ? <FileText /> : isPdf ? <FilePdf className="size-5 text-destructive" /> : <img src={bookmark.faviconUrl || `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="size-5 object-contain" onError={(event) => { event.currentTarget.style.visibility = "hidden" }} />}
                 </span>}
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  {preferences.showTitle && (inCabinet ? <button type="button" onClick={activate} className="truncate text-left font-medium text-foreground hover:underline">{bookmark.title || (isDrawing ? "Untitled drawing" : "Untitled note")}</button> : <a href={originalHref || undefined} target="_blank" rel="noopener noreferrer" draggable={false} onClick={(event) => event.stopPropagation()} className="truncate font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring">{bookmark.title || bookmark.url}</a>)}
+                  {preferences.showTitle && (inCabinet ? <button type="button" onClick={activate} className="truncate text-left font-medium text-foreground hover:underline"><SearchHighlight text={bookmark.title || (isDrawing ? "Untitled drawing" : "Untitled note")} /></button> : <a href={originalHref || undefined} target="_blank" rel="noopener noreferrer" draggable={false} onClick={(event) => event.stopPropagation()} className="truncate font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"><SearchHighlight text={bookmark.title || bookmark.url} /></a>)}
                   {preferences.showDescription && (isNote ? bookmark.notes : bookmark.description) && <p className={cn("line-clamp-1 text-muted-foreground", preferences.density === "compact" ? "text-xs" : "text-sm")}>{isNote ? bookmark.notes : bookmark.description}</p>}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     {preferences.showWebsite && hostname && <span className="max-w-full truncate">{hostname}</span>}
                     {preferences.showFolder && bookmark.folder && <span className="flex min-w-0 items-center gap-1"><FolderSimple className="size-3" /><span className="truncate">{bookmark.folder.name}</span></span>}
                     {bookmark.isFavorite && <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400" title="Favorite"><Star className="size-3" weight="fill" /></span>}
                     {preferences.showDate && date && <time dateTime={bookmark.createdAt} title="Date added" className="tabular-nums md:hidden">{date}</time>}
-                    {(inCabinet || isVideo) && <Badge variant="secondary">{isDrawing ? "Drawing" : isNote ? "Note" : "Video"}</Badge>}
+                    {(inCabinet || isVideo || isPdf) && <Badge variant="secondary">{isDrawing ? "Drawing" : isNote ? "Note" : isPdf ? "PDF" : "Video"}</Badge>}
                     {bookmark.tags?.slice(0, 2).map((tag: any) => <button type="button" key={tag.id || tag.name} onClick={(event) => { event.stopPropagation(); onSelectTag(tag.name) }} className="hover:text-library-olive focus-visible:outline-2 focus-visible:outline-ring">#{tag.name}</button>)}
                   </div>
                 </div>

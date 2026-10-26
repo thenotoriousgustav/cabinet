@@ -1,5 +1,6 @@
 import {
   Controller,
+  HttpCode,
   Get,
   Post,
   Body,
@@ -27,6 +28,7 @@ import { ReorderBookmarksDto } from './dto/reorder-bookmarks.dto';
 import { DownloadMediaDto } from '@/modules/cabinet/dto/download-media.dto';
 import { SaveNoteDto } from './dto/save-note.dto';
 import { SaveDrawingDto } from './dto/save-drawing.dto';
+import { SavedSearchDto } from './dto/saved-search.dto';
 import {
   BulkActionDto,
   BulkArchiveDto,
@@ -41,6 +43,21 @@ import { BookmarkType, BookmarkContentType } from '@prisma/client';
 @UseGuards(AuthGuard)
 export class BookmarksController {
   constructor(private readonly bookmarksService: BookmarksService) {}
+
+  @Get('saved-searches')
+  async savedSearches(@CurrentUser() user: any) {
+    return this.bookmarksService.savedSearches(user.id);
+  }
+
+  @Post('saved-searches')
+  async saveSearch(@CurrentUser() user: any, @Body() dto: SavedSearchDto) {
+    return this.bookmarksService.saveSearch(user.id, dto);
+  }
+
+  @Delete('saved-searches/:id')
+  async deleteSearch(@CurrentUser() user: any, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.bookmarksService.deleteSearch(user.id, id);
+  }
 
   @Put(':id/note')
   @ApiOperation({ summary: 'Create or autosave a note using a stable ID' })
@@ -127,6 +144,9 @@ export class BookmarksController {
   @ApiQuery({ name: 'isTrash', required: false, type: Boolean })
   @ApiQuery({ name: 'tag', required: false })
   @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'domain', required: false })
+  @ApiQuery({ name: 'addedAfter', required: false, description: 'Inclusive UTC date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'addedBefore', required: false, description: 'Inclusive UTC date (YYYY-MM-DD)' })
   @ApiQuery({ name: 'cursor', required: false })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'sort', required: false, enum: BookmarkSort, default: BookmarkSort.Custom })
@@ -141,6 +161,9 @@ export class BookmarksController {
     @Query('isTrash') isTrash?: string,
     @Query('tag') tag?: string,
     @Query('search') search?: string,
+    @Query('domain') domain?: string,
+    @Query('addedAfter') addedAfter?: string,
+    @Query('addedBefore') addedBefore?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
     @Query('status') status?: string,
@@ -160,6 +183,9 @@ export class BookmarksController {
       isTrash: parseBool(isTrash),
       tag,
       search,
+      domain,
+      addedAfter,
+      addedBefore,
       cursor,
       limit: limit === undefined ? undefined : Number(limit),
       status,
@@ -168,7 +194,8 @@ export class BookmarksController {
   }
 
   @Post('import')
-  @ApiOperation({ summary: 'Import bookmarks from HTML file' })
+  @HttpCode(202)
+  @ApiOperation({ summary: 'Queue an HTML bookmark import and return its persistent task status' })
   async import(
     @CurrentUser() user: any,
     @Body() importBookmarksDto: ImportBookmarksDto,
@@ -214,6 +241,7 @@ export class BookmarksController {
   }
 
   @Post('health/check')
+  @HttpCode(202)
   @ApiOperation({ summary: 'Trigger manual scan of bookmark links status' })
   async triggerHealthCheck(@CurrentUser() user: any) {
     return this.bookmarksService.triggerHealthCheck(user.id);
@@ -329,6 +357,7 @@ export class BookmarksController {
   }
 
   @Post(':id/enrichment/refresh')
+  @HttpCode(202)
   @ApiOperation({ summary: 'Refresh enrichment metadata for a bookmark' })
   async refreshEnrichment(@CurrentUser() user: any, @Param('id') id: string) {
     return this.bookmarksService.refreshEnrichment(user.id, id);

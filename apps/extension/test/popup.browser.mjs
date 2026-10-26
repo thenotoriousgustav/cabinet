@@ -13,10 +13,11 @@ import { fileURLToPath } from "node:url"
 
 const source = join(dirname(fileURLToPath(import.meta.url)), "..")
 const require = createRequire(join(source, "../web/package.json"))
-const { chromium, expect } = require("@playwright/test")
+const { chromium, expect: baseExpect } = require("@playwright/test")
+const expect = baseExpect.configure({ timeout: 15000 })
 const shots = process.argv[2]
 
-let signedIn = false
+let signedIn = false, unavailable = false, loseResponse = false
 const posts = []
 const cookies = []
 const server = createServer(async (req, res) => {
@@ -26,6 +27,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, { "content-type": "text/html" })
     return res.end("<title>Field notes on quiet interfaces</title><h1>Field notes</h1><p id=first>Quiet screens help.</p><p id=second>Fewer badges, too.</p>")
   }
+  if (unavailable && url.pathname.startsWith("/v1/")) return json({ message: "Offline fixture" }, 503)
   cookies.push(req.headers.cookie || "")
   if (url.pathname === "/v1/auth/get-session") return json(signedIn ? { user: { id: "me", name: "Gustav" }, session: { id: "s" } } : null)
   if (!signedIn) return json({ message: "Invalid or expired session" }, 401)
@@ -42,6 +44,7 @@ const server = createServer(async (req, res) => {
     let body = ""
     for await (const chunk of req) body += chunk
     posts.push(JSON.parse(body))
+    if (loseResponse) { loseResponse = false; return json({ message: "Lost acknowledgement fixture" }, 503) }
     return json({ success: true, data: { id: "new" } }, 201)
   }
   json({ success: true, data: [] })
@@ -105,7 +108,11 @@ try {
   await popup.getByRole("button", { name: "Save" }).click()
   await expect(popup.getByText("Saved", { exact: true })).toBeVisible()
   await expect(popup.locator("#saved-text")).toHaveText("In Team links · #design #ux")
-  assert.deepEqual(posts.at(-1), { type: "BOOKMARK", url: `${origin}/notes#intro`, title: "Quiet interfaces", folderId: "f-edit", tags: ["design", "ux"] })
+  const { clientRequestId, expectedUserId, source: saveSource, ...savedBody } = posts.at(-1)
+  assert.equal(saveSource, "EXTENSION")
+  assert.match(clientRequestId, /^[a-f0-9-]{36}$/)
+  assert.equal(expectedUserId, "me")
+  assert.deepEqual(savedBody, { type: "BOOKMARK", url: `${origin}/notes#intro`, title: "Quiet interfaces", folderId: "f-edit", tags: ["design", "ux"] })
   if (shots) await popup.screenshot({ path: join(shots, "ext-saved.png") })
 
   // The folder is remembered for next time.
@@ -136,7 +143,29 @@ try {
   assert.deepEqual(highlight.noteDocument.content[0].content.map((block) => block.content[0].text), ["Quiet screens help.", "Fewer badges, too."])
   assert.equal(highlight.noteDocument.content[1].content[0].marks[0].attrs.href, `${origin}/notes`)
 
-  console.log("PASS signed-out prompt, session cookie sent, writable folders only, duplicate notice, tags, save payload, remembered folder, unsupported pages, highlight selection and save")
+  // Cached identity and folders allow offline capture; the queue survives closing/reopening the popup.
+  unavailable = true
+  await open(articleTabId)
+  await expect(popup.getByLabel("Title")).toBeVisible()
+  await popup.getByLabel("Title").fill("Offline bookmark")
+  await popup.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(popup.getByText("Saved locally", { exact: true })).toBeVisible()
+  const pending = await worker.evaluate(async () => (await chrome.storage.local.get("outbox")).outbox)
+  assert.equal(pending.length, 1)
+  await open(articleTabId)
+  await expect(popup.getByText("1 save waiting to sync", { exact: true })).toBeVisible()
+  unavailable = false
+  loseResponse = true
+  await popup.getByRole("button", { name: "Retry sync", exact: true }).click()
+  await expect.poll(() => posts.filter((body) => body.title === "Offline bookmark").length).toBe(1)
+  await popup.getByRole("button", { name: "Retry sync", exact: true }).click()
+  await expect(popup.locator("#outbox-panel")).toBeHidden()
+  const retries = posts.filter((body) => body.title === "Offline bookmark")
+  assert.equal(retries.length, 2)
+  assert.equal(retries[0].clientRequestId, retries[1].clientRequestId)
+  assert.equal(retries[0].clientRequestId, pending[0].id)
+
+  console.log("PASS offline queue/reopen/retry and lost-response stable IDs; signed-out prompt, session cookie sent, writable folders only, duplicate notice, tags, save payload, remembered folder, unsupported pages, highlight selection and save")
 } finally {
   await context.close()
   server.close()

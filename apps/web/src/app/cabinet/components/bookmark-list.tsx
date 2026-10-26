@@ -9,8 +9,9 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from "@/components/ui/empty"
-import { BookmarkSimple, Trash, LinkSimple, FileText, Scribble, VideoCamera, X } from "@phosphor-icons/react"
+import { BookmarkSimple, Trash, LinkSimple, FileText, Scribble, VideoCamera, X, FilePdf } from "@phosphor-icons/react"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import type { CabinetFormat } from "@/lib/cabinet-url"
 import { BookmarkListView } from "./bookmark-list-view"
 import { BookmarkMoodboardView, MoodboardCard } from "./bookmark-moodboard-view"
 import { BookmarkActionSheet } from "./bookmark-action-sheet"
@@ -22,6 +23,7 @@ import { editorPath } from "@/lib/bookmark-kind"
 
 interface BookmarkListProps {
   title?: string
+  intro?: React.ReactNode
   searchQuery?: string
   onClearSearch?: () => void
   viewControls?: React.ReactNode
@@ -59,8 +61,8 @@ interface BookmarkListProps {
   onEmptyTrash?: () => void
   onOpenDownload?: (bookmark: any) => void
   onUpdateBookmark?: (id: string, data: any) => Promise<any>
-  formatFilter?: "all" | "links" | "notes" | "drawings" | "media"
-  onFormatFilterChange?: (format: "all" | "links" | "notes" | "drawings" | "media") => void
+  formatFilter?: CabinetFormat
+  onFormatFilterChange?: (format: CabinetFormat) => void
   isBrokenView?: boolean
   /** Lets the page open a preview from outside the list, such as the command menu. */
   previewBookmark?: any | null
@@ -69,6 +71,7 @@ interface BookmarkListProps {
 
 export function BookmarkList({
   title,
+  intro,
   searchQuery,
   onClearSearch,
   viewControls,
@@ -203,7 +206,7 @@ export function BookmarkList({
     }
   }
 
-  const formatNames = { links: "links", notes: "notes", drawings: "drawings", media: "videos or media" } as const
+  const formatNames = { links: "links", notes: "notes", drawings: "drawings", media: "videos or media", documents: "PDF documents" } as const
   const emptyState: { title: string; description: string; action?: React.ReactNode } = searchQuery
     ? {
         title: `No results for “${searchQuery}”`,
@@ -297,6 +300,10 @@ export function BookmarkList({
                   <VideoCamera className="size-3.5" data-icon="inline-start" />
                   <span>Media</span>
                 </ToggleGroupItem>
+                <ToggleGroupItem value="documents" className="h-8 px-2.5 text-xs font-medium" aria-label="PDFs and documents only">
+                  <FilePdf className="size-3.5" data-icon="inline-start" />
+                  <span>PDFs</span>
+                </ToggleGroupItem>
               </ToggleGroup>
             )}
 
@@ -355,6 +362,7 @@ export function BookmarkList({
         )}
       </div>
 
+      {intro}
       {isBookmarksLoading ? (
         <div role="status" aria-label="Loading bookmarks">
           <span className="sr-only">Loading bookmarks...</span>

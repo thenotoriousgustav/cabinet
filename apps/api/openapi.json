@@ -16,6 +16,44 @@
         ]
       }
     },
+    "/v1/operations/access": {
+      "get": {
+        "operationId": "OperationsController_access",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/metrics": {
+      "get": {
+        "operationId": "OperationsController_snapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "operations"
+        ]
+      }
+    },
     "/v1/users/profile": {
       "patch": {
         "operationId": "UserController_updateProfile",
@@ -43,6 +81,80 @@
         "summary": "Update user profile",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/v1/bookmarks/saved-searches": {
+      "get": {
+        "operationId": "BookmarksController_savedSearches",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "bookmarks"
+        ]
+      },
+      "post": {
+        "operationId": "BookmarksController_saveSearch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedSearchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "bookmarks"
+        ]
+      }
+    },
+    "/v1/bookmarks/saved-searches/{id}": {
+      "delete": {
+        "operationId": "BookmarksController_deleteSearch",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "bookmarks"
         ]
       }
     },
@@ -401,6 +513,32 @@
             }
           },
           {
+            "name": "domain",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "addedAfter",
+            "required": false,
+            "in": "query",
+            "description": "Inclusive UTC date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "addedBefore",
+            "required": false,
+            "in": "query",
+            "description": "Inclusive UTC date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -431,6 +569,7 @@
             "schema": {
               "enum": [
                 "custom",
+                "relevance",
                 "newest",
                 "oldest",
                 "title",
@@ -471,7 +610,7 @@
           }
         },
         "responses": {
-          "201": {
+          "202": {
             "description": ""
           }
         },
@@ -480,7 +619,7 @@
             "cookie": []
           }
         ],
-        "summary": "Import bookmarks from HTML file",
+        "summary": "Queue an HTML bookmark import and return its persistent task status",
         "tags": [
           "bookmarks"
         ]
@@ -600,7 +739,7 @@
         "operationId": "BookmarksController_triggerHealthCheck",
         "parameters": [],
         "responses": {
-          "201": {
+          "202": {
             "description": ""
           }
         },
@@ -981,7 +1120,7 @@
           }
         ],
         "responses": {
-          "201": {
+          "202": {
             "description": ""
           }
         },
@@ -1022,6 +1161,209 @@
         "summary": "Permanently delete a bookmark by ID",
         "tags": [
           "bookmarks"
+        ]
+      }
+    },
+    "/v1/activity": {
+      "get": {
+        "operationId": "ActivityController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1,
+              "maximum": 10000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/v1/activity/overview": {
+      "get": {
+        "operationId": "ActivityController_overview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/v1/activity/tasks/{id}/retry": {
+      "post": {
+        "operationId": "ActivityController_retry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/v1/activity/metadata/{id}/retry": {
+      "post": {
+        "operationId": "ActivityController_retryMetadata",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/v1/activity/onboarding": {
+      "patch": {
+        "operationId": "ActivityController_dismiss",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/v1/uploads": {
+      "post": {
+        "operationId": "UploadsController_upload",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Upload an image or PDF to Cloudflare R2",
+        "tags": [
+          "uploads"
+        ]
+      }
+    },
+    "/v1/uploads/bookmark": {
+      "post": {
+        "operationId": "UploadsController_uploadBookmark",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Upload a PDF or image and save directly as a library bookmark",
+        "tags": [
+          "uploads"
+        ]
+      }
+    },
+    "/v1/uploads/file/{path}": {
+      "get": {
+        "operationId": "UploadsController_serveFile",
+        "parameters": [
+          {
+            "name": "path",
+            "required": true,
+            "in": "path",
+            "description": "Object key",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Serve an uploaded file from R2 via API proxy if needed",
+        "tags": [
+          "uploads"
         ]
       }
     },
@@ -1763,9 +2105,37 @@
           }
         }
       },
+      "SavedSearchDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Relative Cabinet library URL including its search and filters"
+          }
+        },
+        "required": [
+          "name",
+          "url"
+        ]
+      },
       "SaveNoteDto": {
         "type": "object",
         "properties": {
+          "baseRevision": {
+            "type": "number",
+            "description": "Revision read by the editor; 0 for a new note"
+          },
+          "saveId": {
+            "type": "string",
+            "description": "Stable UUID for this save, reused on retries"
+          },
+          "expectedUserId": {
+            "type": "string",
+            "description": "Account that owns this editor draft"
+          },
           "folderId": {
             "type": "string",
             "description": "Destination folder for a new note"
@@ -1860,6 +2230,36 @@
       "CreateBookmarkDto": {
         "type": "object",
         "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "WEB",
+              "EXTENSION",
+              "IMPORT"
+            ],
+            "description": "Client source used for getting-started progress"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "SOCIAL_POST",
+              "IMAGE",
+              "VIDEO",
+              "ARTICLE",
+              "LINK",
+              "PDF",
+              "UNKNOWN"
+            ],
+            "description": "Content type declared by the page"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "description": "Stable request UUID, reused only when retrying the same creation"
+          },
+          "expectedUserId": {
+            "type": "string",
+            "description": "Account that owns an offline request; reject replay under another session"
+          },
           "url": {
             "type": "string",
             "example": "https://nextjs.org",
@@ -2091,6 +2491,17 @@
             "description": "Is bookmarked archived"
           }
         }
+      },
+      "OnboardingDto": {
+        "type": "object",
+        "properties": {
+          "dismissed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dismissed"
+        ]
       },
       "CreateFolderDto": {
         "type": "object",

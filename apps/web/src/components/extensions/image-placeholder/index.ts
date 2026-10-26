@@ -14,6 +14,7 @@ export interface ImagePlaceholderOptions {
   onDrop?: (files: File[], editor: Editor) => void
   onDropRejected?: (files: File[], editor: Editor) => void
   onEmbed?: (url: string, editor: Editor) => void
+  uploadFn?: (file: File) => Promise<string>
 }
 
 declare module "@tiptap/core" {

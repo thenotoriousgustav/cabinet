@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
 import { useForm } from "@tanstack/react-form"
 import * as z from "zod"
@@ -30,6 +31,10 @@ import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@/components
 import { CabinetContainer } from "@/components/cabinet-container"
 import { CabinetSidebarFilters } from "./components/cabinet-sidebar-filters"
 import { Toolbar, BookmarkViewControls } from "./components/toolbar"
+import { SearchTools } from "./components/search-tools"
+import { GettingStarted } from "./components/getting-started"
+import { useActivityOverview } from "@/lib/activity"
+import { SearchQueryContext } from "./components/search-highlight"
 import { ShareFolderDialog } from "./components/share-folder-dialog"
 import { canAddToFolder, describeFolderAccess, folderAccess } from "@/lib/folder-roles"
 import { editorPath, itemAccess } from "@/lib/bookmark-kind"
@@ -65,6 +70,8 @@ import { BulkActionsSheet, BulkTagForm } from "./components/bulk-actions-sheet"
 import { useCabinetFilters } from "./hooks/use-cabinet-filters"
 import { useBookmarkMutations } from "./hooks/use-bookmark-mutations"
 import { useClipboardPaste } from "./hooks/use-clipboard-paste"
+import { useFinderFileDrop } from "./hooks/use-finder-file-drop"
+import { FileDropOverlay } from "./components/file-drop-overlay"
 
 const folderSchema = z.object({
   name: z
@@ -103,6 +110,7 @@ function CabinetWorkspace() {
   const queryClient = useQueryClient()
   const { data: session, isPending: isMeLoading } = authClient.useSession()
   const user = session?.user
+  const { data: activity } = useActivityOverview(user?.id)
   const confirm = useConfirm()
   const [isLoading, setIsLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -131,6 +139,7 @@ function CabinetWorkspace() {
     searchQuery,
     setSearchQuery,
     searchDebounced,
+    currentView, domain, setDomain, addedAfter, setAddedAfter, addedBefore, setAddedBefore,
     viewMode,
     sort,
     handleSortChange,
@@ -165,6 +174,8 @@ function CabinetWorkspace() {
   const addTargetFolderId = canAddHere ? selectedFolderId : undefined
 
   const [selectedBookmarkIds, setSelectedBookmarkIds] = useState<string[]>([])
+  const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false)
+  const guidedOrganization = React.useRef(false)
   const { isMobile, setOpenMobile } = useSidebar()
   const [isMobileAddOpen, setIsMobileAddOpen] = useState(false)
   const [downloadBookmark, setDownloadBookmark] = useState<any | null>(null)
@@ -192,6 +203,7 @@ function CabinetWorkspace() {
     queryClient.invalidateQueries({ queryKey: ["/v1/bookmarks/duplicates"] }),
     queryClient.invalidateQueries({ queryKey: ["/v1/folders"] }),
     queryClient.invalidateQueries({ queryKey: ["/v1/tags"] }),
+    queryClient.invalidateQueries({ queryKey: ["activity-overview"] }),
   ]), [queryClient])
 
   // Modals state
@@ -335,6 +347,9 @@ function CabinetWorkspace() {
       type: filterTrash ? undefined : filterType,
       contentType: filterTrash ? undefined : (filterContentType as any),
       search: searchDebounced || undefined,
+      domain: domain || undefined,
+      addedAfter: addedAfter || undefined,
+      addedBefore: addedBefore || undefined,
       limit: 20,
       sort,
       status: filterBroken ? "BROKEN" : undefined,
@@ -483,6 +498,13 @@ function CabinetWorkspace() {
     onEditBookmark: (bookmark) => handleEditBookmark(bookmark),
   })
 
+  const { isDraggingOver } = useFinderFileDrop({
+    enabled: !(isBookmarkModalOpen || isFolderModalOpen || isMobileAddOpen || isCommandMenuOpen),
+    targetFolderId: addTargetFolderId,
+    targetFolderName: canAddHere ? selectedFolder?.name : undefined,
+    onUploadSuccess: invalidateAllQueries,
+  })
+
   const {
     toggleFavorite,
     togglePin,
@@ -510,6 +532,17 @@ function CabinetWorkspace() {
       bookmarks.find((item: any) => item.id === id) ??
       duplicateGroups.flatMap((group: any) => group.bookmarks).find((item: any) => item.id === id),
   })
+
+  const addTagsToSelection = async (names: string[]) => {
+    setIsTagPopoverOpen(false)
+    await handleBulkAddTags(names)
+    const overview = queryClient.getQueryData<{ onboarding: { organized: boolean } }>(["activity-overview", user?.id])
+    if (guidedOrganization.current && overview?.onboarding.organized) {
+      guidedOrganization.current = false
+      setSelectedBookmarkIds([])
+      setIsBulkSheetOpen(false)
+    }
+  }
 
   const handleLogout = async () => {
     try {
@@ -562,7 +595,7 @@ function CabinetWorkspace() {
     try {
       await scanHealthMutation.mutateAsync()
       invalidateAllQueries()
-      toast.success("Link status check started in the background!")
+      toast.success("Link check queued", { action: { label: "View activity", onClick: () => router.push("/cabinet/activity") } })
     } catch {
       toast.error("Failed to start link status scan.")
     }
@@ -747,6 +780,8 @@ function CabinetWorkspace() {
 
   const handleClearSelection = () => {
     setSelectedBookmarkIds([])
+    setIsTagPopoverOpen(false)
+    guidedOrganization.current = false
   }
 
   const isAllSelected =
@@ -959,14 +994,34 @@ function CabinetWorkspace() {
             <div className="flex h-full min-w-0">
 
             <section ref={bookmarkScrollRef} className="h-full min-w-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pr-0 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] sm:pr-1 md:pb-8">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+              <SearchTools userId={user!.id}
+                location={{ folderId: selectedFolderId, tag: selectedTag, view: currentView, format: formatFilter, q: searchQuery, sort, domain, addedAfter, addedBefore }}
+                onRefine={(next) => { setDomain(next.domain); setAddedAfter(next.addedAfter); setAddedBefore(next.addedBefore) }}
+                tags={tags} onSelectTag={setSelectedTag}
+              />
+              <Button variant="ghost" size="sm" asChild><Link href="/cabinet/activity">Activity{activity && activity.pending + activity.running + activity.failed > 0 ? ` (${activity.pending + activity.running + activity.failed})` : ""}</Link></Button>
+              </div>
               {/* Bookmarks Grid / List */}
+              <SearchQueryContext.Provider value={searchDebounced}>
               <BookmarkList
                 title={activeFilterLabel}
+                intro={activity && !selectedFolderId && !selectedTag && !currentView && !searchQuery && formatFilter === "all" && !domain && !addedAfter && !addedBefore ? <GettingStarted progress={activity.onboarding}
+                  onSave={() => { resetBookmarkForm(); isMobile ? setIsMobileAddOpen(true) : setIsBookmarkModalOpen(true) }}
+                  onOrganize={() => {
+                    const item = bookmarks.find((item: any) => item.canEdit !== false)
+                    if (!item) { resetBookmarkForm(); isMobile ? setIsMobileAddOpen(true) : setIsBookmarkModalOpen(true); return }
+                    guidedOrganization.current = true
+                    setSelectedBookmarkIds([item.id])
+                    if (isMobile) setIsBulkSheetOpen(true)
+                    else setIsTagPopoverOpen(true)
+                  }}
+                /> : undefined}
                 searchQuery={searchQuery}
                 onClearSearch={() => setSearchQuery("")}
                 onAddBookmark={canAddHere ? () => { resetBookmarkForm(); setIsBookmarkModalOpen(true) } : undefined}
                 viewControls={<BookmarkViewControls
-                  sort={sort}
+                  sort={searchDebounced && sort === "custom" ? "relevance" : sort}
                   onSortChange={(value) => {
                     setOptimisticOrder(null)
                     setSelectedBookmarkIds([])
@@ -1018,7 +1073,7 @@ function CabinetWorkspace() {
                 isDuplicatesView={filterDuplicates}
                 duplicateGroups={duplicateGroups}
                 onCleanDuplicates={handleCleanDuplicates}
-                onReorder={sort === "custom" && !filterTrash && !bookmarks.some((item: any) => item.canEdit === false) ? handleReorder : undefined}
+                onReorder={sort === "custom" && !searchDebounced && !domain && !addedAfter && !addedBefore && !filterTrash && !bookmarks.some((item: any) => item.canEdit === false) ? handleReorder : undefined}
                 isTrashView={filterTrash}
                 onRestoreBookmark={handleRestoreBookmark}
                 onPermanentDeleteBookmark={handlePermanentDeleteBookmark}
@@ -1033,6 +1088,7 @@ function CabinetWorkspace() {
                   return result
                 }}
               />
+              </SearchQueryContext.Provider>
 
               {!filterDuplicates && hasNextPage && (
                 <div ref={loadMoreRef} className="flex min-h-12 items-center justify-center py-4" aria-live="polite">
@@ -1150,7 +1206,7 @@ function CabinetWorkspace() {
                 </SelectContent>
               </Select>
 
-              <Popover>
+              <Popover open={isTagPopoverOpen && selectedBookmarkIds.length > 0} onOpenChange={setIsTagPopoverOpen}>
                 <PopoverTrigger asChild>
                   <ActionBarItem variant="outline" size="default">
                     <TagIcon data-icon="inline-start" />
@@ -1158,7 +1214,7 @@ function CabinetWorkspace() {
                   </ActionBarItem>
                 </PopoverTrigger>
                 <PopoverContent align="center" className="w-64 p-3">
-                  <BulkTagForm tags={tags} count={selectedBookmarkIds.length} onAddTags={handleBulkAddTags} />
+                  <BulkTagForm tags={tags} count={selectedBookmarkIds.length} onAddTags={addTagsToSelection} />
                 </PopoverContent>
               </Popover>
 
@@ -1193,7 +1249,7 @@ function CabinetWorkspace() {
         onTrash={handleBulkTrash}
         onRestore={handleBulkRestore}
         onPermanentDelete={handleBulkPermanentDelete}
-        tagForm={<BulkTagForm tags={tags} count={selectedBookmarkIds.length} onAddTags={handleBulkAddTags} />}
+        tagForm={<BulkTagForm tags={tags} count={selectedBookmarkIds.length} onAddTags={addTagsToSelection} />}
       />
 
       {/* Mobile Add Bookmark Drawer */}
@@ -1225,6 +1281,12 @@ function CabinetWorkspace() {
         bookmark={downloadBookmark}
         isOpen={!!downloadBookmark}
         onClose={() => setDownloadBookmark(null)}
+      />
+
+      {/* Drag & Drop File Upload Overlay from Finder */}
+      <FileDropOverlay
+        isDraggingOver={isDraggingOver}
+        targetFolderName={canAddHere ? selectedFolder?.name : undefined}
       />
     </Sortable>
   )

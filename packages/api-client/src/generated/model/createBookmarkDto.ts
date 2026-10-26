@@ -5,10 +5,20 @@
  * API for Cabinet bookmarks, notes, and saved reading
  * OpenAPI spec version: 1.0
  */
+import type { CreateBookmarkDtoContentType } from './createBookmarkDtoContentType.js';
 import type { CreateBookmarkDtoNoteDocument } from './createBookmarkDtoNoteDocument.js';
+import type { CreateBookmarkDtoSource } from './createBookmarkDtoSource.js';
 import type { CreateBookmarkDtoType } from './createBookmarkDtoType.js';
 
 export interface CreateBookmarkDto {
+  /** Client source used for getting-started progress */
+  source?: CreateBookmarkDtoSource;
+  /** Content type declared by the page */
+  contentType?: CreateBookmarkDtoContentType;
+  /** Stable request UUID, reused only when retrying the same creation */
+  clientRequestId?: string;
+  /** Account that owns an offline request; reject replay under another session */
+  expectedUserId?: string;
   /** URL (optional for standalone notes) */
   url?: string;
   /** Item type: BOOKMARK or NOTE */
@@ -17,6 +27,12 @@ export interface CreateBookmarkDto {
   title?: string;
   /** Short description */
   description?: string;
+  /** Preview image read from the page by the client, used when the server cannot fetch the page */
+  imageUrl?: string;
+  /** Favicon read from the page by the client */
+  faviconUrl?: string;
+  /** Site name read from the page by the client */
+  siteName?: string;
   /** Structured note content */
   noteDocument?: CreateBookmarkDtoNoteDocument;
   /** Folder ID */

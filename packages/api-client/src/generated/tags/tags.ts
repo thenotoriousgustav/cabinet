@@ -201,6 +201,192 @@ export function useTagsControllerFindAll<TData = Awaited<ReturnType<typeof tagsC
 
 
 /**
+ * @summary Delete tags that no active item uses
+ */
+export const tagsControllerRemoveUnused = (
+
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/tags/unused`, method: 'DELETE', signal
+    },
+      options);
+    }
+
+
+
+
+export const getTagsControllerRemoveUnusedMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof tagsControllerRemoveUnused>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof tagsControllerRemoveUnused>>, TError,void, TContext> => {
+
+const mutationKey = ['tagsControllerRemoveUnused'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof tagsControllerRemoveUnused>>, void> = () => {
+
+
+          return  tagsControllerRemoveUnused(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TagsControllerRemoveUnusedMutationResult = NonNullable<Awaited<ReturnType<typeof tagsControllerRemoveUnused>>>
+
+    export type TagsControllerRemoveUnusedMutationError = unknown
+
+    /**
+ * @summary Delete tags that no active item uses
+ */
+export const useTagsControllerRemoveUnused = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof tagsControllerRemoveUnused>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof tagsControllerRemoveUnused>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getTagsControllerRemoveUnusedMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Merge a tag into another tag
+ */
+export const tagsControllerMerge = (
+    id: string,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/tags/${id}/merge`, method: 'POST', signal
+    },
+      options);
+    }
+
+
+
+
+export const getTagsControllerMergeMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof tagsControllerMerge>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof tagsControllerMerge>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['tagsControllerMerge'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof tagsControllerMerge>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  tagsControllerMerge(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TagsControllerMergeMutationResult = NonNullable<Awaited<ReturnType<typeof tagsControllerMerge>>>
+
+    export type TagsControllerMergeMutationError = unknown
+
+    /**
+ * @summary Merge a tag into another tag
+ */
+export const useTagsControllerMerge = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof tagsControllerMerge>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof tagsControllerMerge>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getTagsControllerMergeMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Rename a tag
+ */
+export const tagsControllerRename = (
+    id: string,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/tags/${id}`, method: 'PATCH', signal
+    },
+      options);
+    }
+
+
+
+
+export const getTagsControllerRenameMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof tagsControllerRename>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof tagsControllerRename>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['tagsControllerRename'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof tagsControllerRename>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  tagsControllerRename(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TagsControllerRenameMutationResult = NonNullable<Awaited<ReturnType<typeof tagsControllerRename>>>
+
+    export type TagsControllerRenameMutationError = unknown
+
+    /**
+ * @summary Rename a tag
+ */
+export const useTagsControllerRename = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof tagsControllerRename>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof tagsControllerRename>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getTagsControllerRenameMutationOptions(options), queryClient);
+    }
+    /**
  * @summary Delete a tag by id
  */
 export const tagsControllerRemove = (

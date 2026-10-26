@@ -17,6 +17,15 @@ isArchived?: boolean;
 isTrash?: boolean;
 tag?: string;
 search?: string;
+domain?: string;
+/**
+ * Inclusive UTC date (YYYY-MM-DD)
+ */
+addedAfter?: string;
+/**
+ * Inclusive UTC date (YYYY-MM-DD)
+ */
+addedBefore?: string;
 cursor?: string;
 limit?: number;
 status?: string;

@@ -30,9 +30,12 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  BookmarksControllerEmbeddableParams,
   BookmarksControllerExtractMediaParams,
   BookmarksControllerFindAllParams,
   BookmarksControllerProxyImageParams,
+  BookmarksControllerProxyPageParams,
+  BookmarksControllerRediscoverParams,
   BookmarksControllerScrapeParams,
   BulkActionDto,
   BulkArchiveDto,
@@ -42,7 +45,9 @@ import type {
   DownloadMediaDto,
   ImportBookmarksDto,
   ReorderBookmarksDto,
+  SaveDrawingDto,
   SaveNoteDto,
+  SavedSearchDto,
   UpdateBookmarkDto
 } from '../model';
 
@@ -68,7 +73,207 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-/**
+export const bookmarksControllerSavedSearches = (
+
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/bookmarks/saved-searches`, method: 'GET', signal
+    },
+      options);
+    }
+
+
+
+
+export const getBookmarksControllerSavedSearchesQueryKey = () => {
+    return [
+    `/v1/bookmarks/saved-searches`
+    ] as const;
+    }
+
+
+export const getBookmarksControllerSavedSearchesQueryOptions = <TData = Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getBookmarksControllerSavedSearchesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>> = ({ signal }) => bookmarksControllerSavedSearches(requestOptions, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type BookmarksControllerSavedSearchesQueryResult = NonNullable<Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>>
+export type BookmarksControllerSavedSearchesQueryError = unknown
+
+
+export function useBookmarksControllerSavedSearches<TData = Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>,
+          TError,
+          Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBookmarksControllerSavedSearches<TData = Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>,
+          TError,
+          Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBookmarksControllerSavedSearches<TData = Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useBookmarksControllerSavedSearches<TData = Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerSavedSearches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getBookmarksControllerSavedSearchesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const bookmarksControllerSaveSearch = (
+    savedSearchDto: SavedSearchDto,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/bookmarks/saved-searches`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: savedSearchDto, signal
+    },
+      options);
+    }
+
+
+
+
+export const getBookmarksControllerSaveSearchMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerSaveSearch>>, TError,{data: SavedSearchDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerSaveSearch>>, TError,{data: SavedSearchDto}, TContext> => {
+
+const mutationKey = ['bookmarksControllerSaveSearch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bookmarksControllerSaveSearch>>, {data: SavedSearchDto}> = (props) => {
+          const {data} = props ?? {};
+
+          return  bookmarksControllerSaveSearch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BookmarksControllerSaveSearchMutationResult = NonNullable<Awaited<ReturnType<typeof bookmarksControllerSaveSearch>>>
+    export type BookmarksControllerSaveSearchMutationBody = SavedSearchDto
+    export type BookmarksControllerSaveSearchMutationError = unknown
+
+    export const useBookmarksControllerSaveSearch = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerSaveSearch>>, TError,{data: SavedSearchDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof bookmarksControllerSaveSearch>>,
+        TError,
+        {data: SavedSearchDto},
+        TContext
+      > => {
+      return useMutation(getBookmarksControllerSaveSearchMutationOptions(options), queryClient);
+    }
+    export const bookmarksControllerDeleteSearch = (
+    id: string,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/bookmarks/saved-searches/${id}`, method: 'DELETE', signal
+    },
+      options);
+    }
+
+
+
+
+export const getBookmarksControllerDeleteSearchMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerDeleteSearch>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerDeleteSearch>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['bookmarksControllerDeleteSearch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bookmarksControllerDeleteSearch>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  bookmarksControllerDeleteSearch(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BookmarksControllerDeleteSearchMutationResult = NonNullable<Awaited<ReturnType<typeof bookmarksControllerDeleteSearch>>>
+
+    export type BookmarksControllerDeleteSearchMutationError = unknown
+
+    export const useBookmarksControllerDeleteSearch = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerDeleteSearch>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof bookmarksControllerDeleteSearch>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getBookmarksControllerDeleteSearchMutationOptions(options), queryClient);
+    }
+    /**
  * @summary Create or autosave a note using a stable ID
  */
 export const bookmarksControllerSaveNote = (
@@ -132,6 +337,71 @@ export const useBookmarksControllerSaveNote = <TError = unknown,
         TContext
       > => {
       return useMutation(getBookmarksControllerSaveNoteMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Create or autosave a drawing using a stable ID
+ */
+export const bookmarksControllerSaveDrawing = (
+    id: string,
+    saveDrawingDto: SaveDrawingDto,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/bookmarks/${id}/drawing`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: saveDrawingDto, signal
+    },
+      options);
+    }
+
+
+
+
+export const getBookmarksControllerSaveDrawingMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerSaveDrawing>>, TError,{id: string;data: SaveDrawingDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerSaveDrawing>>, TError,{id: string;data: SaveDrawingDto}, TContext> => {
+
+const mutationKey = ['bookmarksControllerSaveDrawing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bookmarksControllerSaveDrawing>>, {id: string;data: SaveDrawingDto}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  bookmarksControllerSaveDrawing(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BookmarksControllerSaveDrawingMutationResult = NonNullable<Awaited<ReturnType<typeof bookmarksControllerSaveDrawing>>>
+    export type BookmarksControllerSaveDrawingMutationBody = SaveDrawingDto
+    export type BookmarksControllerSaveDrawingMutationError = unknown
+
+    /**
+ * @summary Create or autosave a drawing using a stable ID
+ */
+export const useBookmarksControllerSaveDrawing = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerSaveDrawing>>, TError,{id: string;data: SaveDrawingDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof bookmarksControllerSaveDrawing>>,
+        TError,
+        {id: string;data: SaveDrawingDto},
+        TContext
+      > => {
+      return useMutation(getBookmarksControllerSaveDrawingMutationOptions(options), queryClient);
     }
     /**
  * @summary Proxy external image to bypass CORS and hotlink protection
@@ -308,6 +578,192 @@ export function useBookmarksControllerScrape<TData = Awaited<ReturnType<typeof b
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getBookmarksControllerScrapeQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+/**
+ * @summary Check whether a website allows being shown in an iframe
+ */
+export const bookmarksControllerEmbeddable = (
+    params: BookmarksControllerEmbeddableParams,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/bookmarks/embeddable`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+
+
+
+
+export const getBookmarksControllerEmbeddableQueryKey = (params?: BookmarksControllerEmbeddableParams,) => {
+    return [
+    `/v1/bookmarks/embeddable`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getBookmarksControllerEmbeddableQueryOptions = <TData = Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError = unknown>(params: BookmarksControllerEmbeddableParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getBookmarksControllerEmbeddableQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>> = ({ signal }) => bookmarksControllerEmbeddable(params, requestOptions, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type BookmarksControllerEmbeddableQueryResult = NonNullable<Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>>
+export type BookmarksControllerEmbeddableQueryError = unknown
+
+
+export function useBookmarksControllerEmbeddable<TData = Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError = unknown>(
+ params: BookmarksControllerEmbeddableParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>,
+          TError,
+          Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBookmarksControllerEmbeddable<TData = Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError = unknown>(
+ params: BookmarksControllerEmbeddableParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>,
+          TError,
+          Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBookmarksControllerEmbeddable<TData = Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError = unknown>(
+ params: BookmarksControllerEmbeddableParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Check whether a website allows being shown in an iframe
+ */
+
+export function useBookmarksControllerEmbeddable<TData = Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError = unknown>(
+ params: BookmarksControllerEmbeddableParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerEmbeddable>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getBookmarksControllerEmbeddableQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+/**
+ * @summary Serve a page that forbids framing, rewritten for a sandboxed preview iframe
+ */
+export const bookmarksControllerProxyPage = (
+    params: BookmarksControllerProxyPageParams,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/bookmarks/proxy-page`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+
+
+
+
+export const getBookmarksControllerProxyPageQueryKey = (params?: BookmarksControllerProxyPageParams,) => {
+    return [
+    `/v1/bookmarks/proxy-page`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getBookmarksControllerProxyPageQueryOptions = <TData = Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError = unknown>(params: BookmarksControllerProxyPageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getBookmarksControllerProxyPageQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof bookmarksControllerProxyPage>>> = ({ signal }) => bookmarksControllerProxyPage(params, requestOptions, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type BookmarksControllerProxyPageQueryResult = NonNullable<Awaited<ReturnType<typeof bookmarksControllerProxyPage>>>
+export type BookmarksControllerProxyPageQueryError = unknown
+
+
+export function useBookmarksControllerProxyPage<TData = Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError = unknown>(
+ params: BookmarksControllerProxyPageParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof bookmarksControllerProxyPage>>,
+          TError,
+          Awaited<ReturnType<typeof bookmarksControllerProxyPage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBookmarksControllerProxyPage<TData = Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError = unknown>(
+ params: BookmarksControllerProxyPageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof bookmarksControllerProxyPage>>,
+          TError,
+          Awaited<ReturnType<typeof bookmarksControllerProxyPage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBookmarksControllerProxyPage<TData = Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError = unknown>(
+ params: BookmarksControllerProxyPageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Serve a page that forbids framing, rewritten for a sandboxed preview iframe
+ */
+
+export function useBookmarksControllerProxyPage<TData = Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError = unknown>(
+ params: BookmarksControllerProxyPageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerProxyPage>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getBookmarksControllerProxyPageQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -707,7 +1163,7 @@ export function useBookmarksControllerFindAll<TData = Awaited<ReturnType<typeof 
 
 
 /**
- * @summary Import bookmarks from HTML file
+ * @summary Queue an HTML bookmark import and return its persistent task status
  */
 export const bookmarksControllerImport = (
     importBookmarksDto: ImportBookmarksDto,
@@ -758,7 +1214,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type BookmarksControllerImportMutationError = unknown
 
     /**
- * @summary Import bookmarks from HTML file
+ * @summary Queue an HTML bookmark import and return its persistent task status
  */
 export const useBookmarksControllerImport = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookmarksControllerImport>>, TError,{data: ImportBookmarksDto}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -943,6 +1399,99 @@ export function useBookmarksControllerGetHealthSummary<TData = Awaited<ReturnTyp
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getBookmarksControllerGetHealthSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+/**
+ * @summary Get a shuffled selection of older saved items to revisit
+ */
+export const bookmarksControllerRediscover = (
+    params?: BookmarksControllerRediscoverParams,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/bookmarks/rediscover`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+
+
+
+
+export const getBookmarksControllerRediscoverQueryKey = (params?: BookmarksControllerRediscoverParams,) => {
+    return [
+    `/v1/bookmarks/rediscover`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getBookmarksControllerRediscoverQueryOptions = <TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(params?: BookmarksControllerRediscoverParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getBookmarksControllerRediscoverQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof bookmarksControllerRediscover>>> = ({ signal }) => bookmarksControllerRediscover(params, requestOptions, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type BookmarksControllerRediscoverQueryResult = NonNullable<Awaited<ReturnType<typeof bookmarksControllerRediscover>>>
+export type BookmarksControllerRediscoverQueryError = unknown
+
+
+export function useBookmarksControllerRediscover<TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(
+ params: undefined |  BookmarksControllerRediscoverParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof bookmarksControllerRediscover>>,
+          TError,
+          Awaited<ReturnType<typeof bookmarksControllerRediscover>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBookmarksControllerRediscover<TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(
+ params?: BookmarksControllerRediscoverParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof bookmarksControllerRediscover>>,
+          TError,
+          Awaited<ReturnType<typeof bookmarksControllerRediscover>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBookmarksControllerRediscover<TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(
+ params?: BookmarksControllerRediscoverParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get a shuffled selection of older saved items to revisit
+ */
+
+export function useBookmarksControllerRediscover<TData = Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError = unknown>(
+ params?: BookmarksControllerRediscoverParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof bookmarksControllerRediscover>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getBookmarksControllerRediscoverQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client"
 
 export enum BookmarkSort {
   Custom = "custom",
+  Relevance = "relevance",
   Newest = "newest",
   Oldest = "oldest",
   Title = "title",
@@ -12,6 +13,7 @@ export function bookmarkOrderBy(sort: BookmarkSort = BookmarkSort.Custom): Prism
   const order: Prisma.BookmarkOrderByWithRelationInput[] = [{ isPinned: "desc" }]
   switch (sort) {
     case BookmarkSort.Custom: order.push({ position: "asc" }, { createdAt: "desc" }); break
+    case BookmarkSort.Relevance:
     case BookmarkSort.Newest: order.push({ createdAt: "desc" }); break
     case BookmarkSort.Oldest: order.push({ createdAt: "asc" }); break
     case BookmarkSort.Title: order.push({ sortTitle: "asc" }); break

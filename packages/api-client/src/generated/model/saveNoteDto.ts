@@ -8,12 +8,20 @@
 import type { SaveNoteDtoNoteDocument } from './saveNoteDtoNoteDocument.js';
 
 export interface SaveNoteDto {
+  /** Revision read by the editor; 0 for a new note */
+  baseRevision?: number;
+  /** Stable UUID for this save, reused on retries */
+  saveId?: string;
+  /** Account that owns this editor draft */
+  expectedUserId?: string;
   /** Destination folder for a new note */
   folderId?: string;
   /** Note title */
   title?: string;
   /** Plain-text preview of the note */
   notes?: string;
+  /** Replaces the note tags when provided */
+  tags?: string[];
   /** Tiptap document JSON */
   noteDocument: SaveNoteDtoNoteDocument;
 }

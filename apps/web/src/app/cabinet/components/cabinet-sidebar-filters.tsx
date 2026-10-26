@@ -26,6 +26,7 @@ import {
   Desktop,
   SignOut,
   Shuffle,
+  ClockCounterClockwise,
 } from "@phosphor-icons/react"
 import { AXIOS_INSTANCE } from "@/lib/api-client"
 import { toast } from "@/components/ui/sonner"
@@ -325,6 +326,7 @@ export function CabinetSidebarFilters({
               </button>
             }
           >
+            <WorkspaceSidebarItem icon={<ClockCounterClockwise className="size-4" />} label="Activity" onClick={() => { router.push("/cabinet/activity"); onItemSelect?.() }} />
             <WorkspaceSidebarItem
               icon={<Warning className={cn("size-4", healthSummary?.broken > 0 && "text-destructive")} />}
               label="Broken links"

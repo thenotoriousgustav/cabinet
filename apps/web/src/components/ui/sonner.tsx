@@ -32,6 +32,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
+          fontFamily: "inherit",
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",

@@ -3,6 +3,8 @@
 import type { NodeViewProps } from "@tiptap/react"
 import { NodeViewWrapper } from "@tiptap/react"
 import { Image, LinkSimple as Link, UploadSimple as Upload } from "@phosphor-icons/react"
+import { toast } from "sonner"
+import { Spinner } from "@/components/ui/spinner"
 import type { DragEvent, FormEvent } from "react"
 import { useCallback, useId, useState } from "react"
 
@@ -34,6 +36,7 @@ export const ImagePlaceholderNode = ({
   const [urlError, setUrlError] = useState(false)
   const [isDragActive, setIsDragActive] = useState(false)
   const [isDragReject, setIsDragReject] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
 
   const replaceWithImage = useCallback(
     (src: string) => {
@@ -53,7 +56,22 @@ export const ImagePlaceholderNode = ({
     [editor, getPos, node.nodeSize]
   )
 
-  const handleAcceptedFiles = (files: File[]) => {
+  const handleAcceptedFiles = async (files: File[]) => {
+    if (extension.options.uploadFn) {
+      setIsUploading(true)
+      try {
+        for (const file of files) {
+          const uploadedUrl = await extension.options.uploadFn(file)
+          if (uploadedUrl) replaceWithImage(uploadedUrl)
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Failed to upload image")
+      } finally {
+        setIsUploading(false)
+      }
+      return
+    }
+
     for (const file of files) {
       const reader = new FileReader()
       reader.addEventListener("load", () =>
@@ -205,8 +223,17 @@ export const ImagePlaceholderNode = ({
                     htmlFor={fileInputId}
                     className="ext-image-upload-label"
                   >
-                    <Upload />
-                    Drag & drop or click to upload
+                    {isUploading ? (
+                      <>
+                        <Spinner className="size-4" />
+                        Uploading to R2…
+                      </>
+                    ) : (
+                      <>
+                        <Upload />
+                        Drag & drop or click to upload
+                      </>
+                    )}
                   </label>
                 </div>
               </TabsContent>

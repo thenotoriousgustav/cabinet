@@ -21,8 +21,45 @@ model User {
   bookmarks     Bookmark[]
   tags          Tag[]
   folderMemberships FolderMember[]
+  savedSearches SavedSearch[]
+  backgroundTasks BackgroundTask[]
+  onboardingDismissed Boolean @default(false)
+  extensionLastSeenAt DateTime?
 
   @@map("users")
+}
+
+model BackgroundTask {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  kind String @db.VarChar(24)
+  activeKey String? @unique @db.VarChar(80)
+  status String @default("PENDING") @db.VarChar(24)
+  payload Json?
+  total Int @default(0)
+  processed Int @default(0)
+  failed Int @default(0)
+  attempt Int @default(0)
+  error String? @db.VarChar(300)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  startedAt DateTime?
+  finishedAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("background_tasks")
+}
+
+model SavedSearch {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  name String @db.VarChar(80)
+  url String @db.VarChar(2000)
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@map("saved_searches")
 }
 
 model Session {
@@ -117,6 +154,11 @@ model Bookmark {
   description    String?
   notes          String?              @db.Text
   noteDocument   Json?
+  noteRevision   Int                  @default(0)
+  noteSaveId     String?              @db.Uuid
+  /// An account-scoped request ID makes create retries safe after a lost response.
+  clientRequestId String?             @db.Uuid
+  source         String               @default("WEB") @db.VarChar(16)
   /// Excalidraw scene of a DRAWING item: elements, a small app state, and embedded files.
   drawing        Json?
   imageUrl       String?
@@ -125,6 +167,7 @@ model Bookmark {
   contentType    BookmarkContentType?
   metadataStatus MetadataStatus       @default(PENDING)
   metadataError  String?
+  metadataTitlePending Boolean @default(false)
   lastEnrichedAt DateTime?
   isPinned       Boolean              @default(false)
   sortTitle      String               @default("")
@@ -147,6 +190,7 @@ model Bookmark {
 
   @@index([userId, deletedAt, isPinned(sort: Desc), position])
   @@index([userId, folderId, deletedAt])
+  @@unique([userId, clientRequestId])
   @@index([metadataStatus])
   @@index([type])
   @@map("bookmarks")
@@ -173,6 +217,7 @@ enum BookmarkContentType {
   VIDEO
   ARTICLE
   LINK
+  PDF
   UNKNOWN
 }
 

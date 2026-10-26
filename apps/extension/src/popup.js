@@ -1,6 +1,6 @@
 import {
   SignedOutError, cleanTags, findExisting, getLastFolderId, getSession, listFolders, listTags,
-  openCabinet, pageMetadata, saveBookmark, saveableUrl, setLastFolderId,
+  openCabinet, pageMetadata, saveBookmark, saveableUrl, setLastFolderId, getOutbox, getSettings,
 } from "./cabinet.js"
 
 const $ = (id) => document.getElementById(id)
@@ -80,6 +80,29 @@ async function checkDuplicate(url) {
   }
 }
 
+async function refreshOutbox() {
+  const items = await getOutbox()
+  if (!Array.isArray(items)) return
+  $("outbox-panel").hidden = items.length === 0
+  $("outbox-summary").textContent = `${items.length} save${items.length === 1 ? "" : "s"} waiting to sync`
+  $("outbox-items").replaceChildren(...items.map((item) => {
+    const row = document.createElement("li")
+    row.append(`${item.body.title || item.body.url || "Highlight"} — ${item.status === "blocked" ? item.error : "Waiting to reconnect"} `)
+    const discard = document.createElement("button")
+    discard.type = "button"
+    discard.className = "button"
+    discard.textContent = "Discard"
+    discard.onclick = async () => { await chrome.runtime.sendMessage({ type: "cabinet-discard", id: item.id }); await refreshOutbox() }
+    row.append(discard)
+    return row
+  }))
+}
+$("retry-sync").onclick = async () => {
+  $("retry-sync").disabled = true
+  try { await chrome.runtime.sendMessage({ type: "cabinet-retry" }); await refreshOutbox() }
+  finally { $("retry-sync").disabled = false }
+}
+
 async function init() {
   $("open-settings").addEventListener("click", () => chrome.runtime.openOptionsPage())
   // ?tab=<id> lets the popup page be opened in a normal tab (for testing) and still target a page.
@@ -95,10 +118,14 @@ async function init() {
 
   const user = await getSession()
   if (!user) return signedOut()
+  void refreshOutbox()
+  const { apiUrl } = await getSettings()
+  const cacheKey = `folders:${apiUrl}:${user.id}`
 
   try {
     const [folderList, tagList, lastFolderId] = await Promise.all([listFolders(), listTags().catch(() => []), getLastFolderId()])
     folders = folderList
+    await chrome.storage.local.set({ [cacheKey]: folderList })
     const select = $("folder")
     select.replaceChildren(new Option("Unfiled", ""))
     for (const folder of folders) select.append(new Option(folder.shared ? `${folder.name} (shared)` : folder.name, folder.id))
@@ -106,8 +133,12 @@ async function init() {
     $("tag-suggestions").replaceChildren(...tagList.map((name) => new Option(name)))
   } catch (error) {
     if (error instanceof SignedOutError) return signedOut()
-    message("Couldn't load your folders", error.message, { label: "Try again", run: () => location.reload() })
-    return
+    folders = (await chrome.storage.local.get({ [cacheKey]: [] }))[cacheKey]
+    const select = $("folder")
+    select.replaceChildren(new Option("Unfiled", ""), ...folders.map((folder) => new Option(folder.name, folder.id)))
+    const last = await getLastFolderId()
+    select.value = folders.some((folder) => folder.id === last) ? last : ""
+    $("shortcut-hint").textContent = "Offline · saves will queue locally"
   }
 
   const host = new URL(url).hostname.replace(/^www\./, "")
@@ -152,10 +183,13 @@ $("state-form").addEventListener("submit", async (event) => {
   save.textContent = "Saving…"
   const folderId = $("folder").value
   try {
-    await saveBookmark({ url: tab.url, title: $("title").value, folderId, tags, metadata: await metadata })
+    const result = await saveBookmark({ url: tab.url, title: $("title").value, folderId, tags, metadata: await metadata })
     await setLastFolderId(folderId)
     const folder = folders.find((item) => item.id === folderId)
     $("saved-text").textContent = `In ${folder ? folder.name : "Unfiled"}${tags.length ? ` · ${tags.map((t) => `#${t}`).join(" ")}` : ""}`
+    $("saved-title").textContent = result.queued ? "Saved locally" : "Saved"
+    if (result.queued) $("saved-text").textContent = result.status === "blocked" ? `Needs attention: ${result.error}` : "Waiting to sync. Cabinet will retry automatically, even after this popup closes."
+    await refreshOutbox()
     $("open-saved").onclick = async () => { await openCabinet(folderPath(folderId)); window.close() }
     show("state-saved")
     $("close").focus()

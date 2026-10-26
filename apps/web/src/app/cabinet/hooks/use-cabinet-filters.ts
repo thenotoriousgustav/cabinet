@@ -11,7 +11,7 @@ import { buildCabinetUrl, parseCabinetLocation, type CabinetFormat, type Cabinet
 
 function parseUrlFilters() {
   if (typeof window === "undefined") return {}
-  const { folderId, tag, view, format, q, sort } = parseCabinetLocation(
+  const { folderId, tag, view, format, q, sort, domain, addedAfter, addedBefore } = parseCabinetLocation(
     window.location.pathname,
     window.location.search
   )
@@ -22,6 +22,7 @@ function parseUrlFilters() {
     format,
     searchQuery: q || "",
     sort: isBookmarkSort(sort) ? sort : undefined,
+    domain, addedAfter, addedBefore,
   }
 }
 
@@ -44,9 +45,12 @@ export function useCabinetFilters(folders: any[]) {
   const [searchDebounced, setSearchDebounced] = useState<string>(
     initialUrl.searchQuery || ""
   )
+  const [domain, setDomain] = useState(initialUrl.domain || "")
+  const [addedAfter, setAddedAfter] = useState(initialUrl.addedAfter || "")
+  const [addedBefore, setAddedBefore] = useState(initialUrl.addedBefore || "")
   const viewMode = "moodboard" as const
   const [sort, setSortState] = useState<BookmarkSort>(
-    initialUrl.sort || "custom"
+    initialUrl.sort || (initialUrl.searchQuery ? "relevance" : "custom")
   )
   const [filterBroken, setFilterBrokenState] = useState<boolean | undefined>(
     initialUrl.view === "broken" ? true : undefined
@@ -75,9 +79,10 @@ export function useCabinetFilters(folders: any[]) {
   )
   const [filterContentType, setFilterContentTypeState] = useState<
     string | undefined
-  >(initialUrl.format === "media" ? "VIDEO" : undefined)
+  >(initialUrl.format === "media" ? "VIDEO" : initialUrl.format === "documents" ? "PDF" : undefined)
 
-  const formatFilter: "all" | "links" | "notes" | "drawings" | "media" = useMemo(() => {
+  const formatFilter: CabinetFormat = useMemo(() => {
+    if (filterContentType === "PDF") return "documents"
     if (filterContentType === "VIDEO") return "media"
     if (filterType === "NOTE") return "notes"
     if (filterType === "DRAWING") return "drawings"
@@ -85,7 +90,7 @@ export function useCabinetFilters(folders: any[]) {
     return "all"
   }, [filterContentType, filterType])
 
-  const currentView = useMemo(() => {
+  const currentView = useMemo<CabinetView | undefined>(() => {
     if (filterTrash) return "trash"
     if (filterFavorite) return "favorites"
     if (filterArchived) return "archive"
@@ -111,6 +116,7 @@ export function useCabinetFilters(folders: any[]) {
       format: formatFilter,
       q: searchDebounced,
       sort,
+      domain, addedAfter, addedBefore,
     })
     const current = `${window.location.pathname}${window.location.search}`
     const previousPath = committedPath.current
@@ -119,7 +125,16 @@ export function useCabinetFilters(folders: any[]) {
     // First render, popstate, and query-only refinements replace; navigation pushes.
     if (previousPath === null || previousPath === path) window.history.replaceState(window.history.state, "", url)
     else window.history.pushState(null, "", url)
-  }, [selectedFolderId, selectedTag, currentView, formatFilter, searchDebounced, sort])
+  }, [selectedFolderId, selectedTag, currentView, formatFilter, searchDebounced, sort, domain, addedAfter, addedBefore])
+
+  const wasSearching = useRef(!!initialUrl.searchQuery)
+  const collectionSort = useRef<BookmarkSort>("custom")
+  useEffect(() => {
+    const searching = !!searchDebounced.trim()
+    if (searching && !wasSearching.current) { collectionSort.current = sort; setSortState("relevance") }
+    if (!searching && wasSearching.current) setSortState(collectionSort.current)
+    wasSearching.current = searching
+  }, [searchDebounced, sort])
 
   // Debounce search query input
   useEffect(() => {
@@ -142,7 +157,11 @@ export function useCabinetFilters(folders: any[]) {
       setSelectedTagState(parsed.tag)
       setSearchQuery(parsed.searchQuery || "")
       setSearchDebounced(parsed.searchQuery || "")
-      setSortState(parsed.sort || "custom")
+      wasSearching.current = !!parsed.searchQuery
+      setSortState(parsed.sort || (parsed.searchQuery ? "relevance" : "custom"))
+      setDomain(parsed.domain || "")
+      setAddedAfter(parsed.addedAfter || "")
+      setAddedBefore(parsed.addedBefore || "")
 
       // Apply view mode
       setFilterFavoriteState(parsed.view === "favorites" ? true : undefined)
@@ -159,7 +178,9 @@ export function useCabinetFilters(folders: any[]) {
               ? "BOOKMARK"
               : undefined
       )
-      setFilterContentTypeState(parsed.format === "media" ? "VIDEO" : undefined)
+      setFilterContentTypeState(
+        parsed.format === "media" ? "VIDEO" : parsed.format === "documents" ? "PDF" : undefined
+      )
     }
 
     window.addEventListener("popstate", handlePopState)
@@ -169,7 +190,7 @@ export function useCabinetFilters(folders: any[]) {
   // Local storage preferences on mount
   useEffect(() => {
     const savedSort = localStorage.getItem("cabinet_sort")
-    if (isBookmarkSort(savedSort) && !initialUrl.sort) {
+    if (isBookmarkSort(savedSort) && !initialUrl.sort && !initialUrl.searchQuery) {
       setSortState(savedSort)
     }
 
@@ -184,7 +205,7 @@ export function useCabinetFilters(folders: any[]) {
         localStorage.removeItem("cabinet_display_preferences")
       }
     }
-  }, [initialUrl.sort])
+  }, [initialUrl.sort, initialUrl.searchQuery])
 
   const setSelectedFolderId = useCallback(
     (id: string | undefined) => {
@@ -260,9 +281,9 @@ export function useCabinetFilters(folders: any[]) {
   )
 
   const handleFormatFilterChange = useCallback(
-    (format: "all" | "links" | "notes" | "drawings" | "media") => {
+    (format: CabinetFormat) => {
       const nextType = format === "links" ? "BOOKMARK" : format === "notes" ? "NOTE" : format === "drawings" ? "DRAWING" : undefined
-      const nextContentType = format === "media" ? "VIDEO" : undefined
+      const nextContentType = format === "media" ? "VIDEO" : format === "documents" ? "PDF" : undefined
       setFilterTypeState(nextType)
       setFilterContentTypeState(nextContentType)
     },
@@ -273,10 +294,10 @@ export function useCabinetFilters(folders: any[]) {
     (value: BookmarkSort) => {
       setSortState(value)
       try {
-        localStorage.setItem("cabinet_sort", value)
+        if (!searchQuery.trim()) localStorage.setItem("cabinet_sort", value)
       } catch {}
     },
-    []
+    [searchQuery]
   )
 
   const handleDisplayPreferencesChange = useCallback(
@@ -318,7 +339,7 @@ export function useCabinetFilters(folders: any[]) {
       setFilterDuplicatesState(next.view === "duplicates" ? true : undefined)
       setFilterTrashState(next.view === "trash" ? true : undefined)
       setFilterTypeState(next.format === "notes" ? "NOTE" : next.format === "drawings" ? "DRAWING" : next.format === "links" ? "BOOKMARK" : undefined)
-      setFilterContentTypeState(next.format === "media" ? "VIDEO" : undefined)
+      setFilterContentTypeState(next.format === "media" ? "VIDEO" : next.format === "documents" ? "PDF" : undefined)
     },
     []
   )
@@ -349,6 +370,7 @@ export function useCabinetFilters(folders: any[]) {
     if (filterType === "NOTE") return "Notes"
     if (filterType === "DRAWING") return "Drawings"
     if (filterType === "BOOKMARK") return "Links"
+    if (filterContentType === "PDF") return "PDFs & documents"
     if (filterContentType === "VIDEO") return "Videos & media"
     return "All items"
   }, [
@@ -376,9 +398,14 @@ export function useCabinetFilters(folders: any[]) {
     setFilterContentType(undefined)
     setSearchQuery("")
     setSearchDebounced("")
+    setDomain("")
+    setAddedAfter("")
+    setAddedBefore("")
   }, [setSelectedFolderId, setSelectedTag, setFilterFavorite, setFilterArchived, setFilterBroken, setFilterDuplicates, setFilterTrash, setFilterType, setFilterContentType])
 
   return {
+    currentView,
+    domain, setDomain, addedAfter, setAddedAfter, addedBefore, setAddedBefore,
     selectedFolderId,
     setSelectedFolderId,
     filterFavorite,

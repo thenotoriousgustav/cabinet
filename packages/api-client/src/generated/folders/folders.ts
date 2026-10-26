@@ -25,7 +25,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AddMemberDto,
   CreateFolderDto,
+  InvitationDto,
+  MemberRoleDto,
   UpdateFolderDto
 } from '../model';
 
@@ -520,12 +523,15 @@ export function useFoldersControllerGetCollaboration<TData = Awaited<ReturnType<
  */
 export const foldersControllerEnableInvite = (
     id: string,
+    invitationDto: InvitationDto,
  options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
 ) => {
 
 
       return customInstance<void>(
-      {url: `/v1/folders/${id}/invitation`, method: 'PUT', signal
+      {url: `/v1/folders/${id}/invitation`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: invitationDto, signal
     },
       options);
     }
@@ -534,8 +540,8 @@ export const foldersControllerEnableInvite = (
 
 
 export const getFoldersControllerEnableInviteMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerEnableInvite>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof foldersControllerEnableInvite>>, TError,{id: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerEnableInvite>>, TError,{id: string;data: InvitationDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof foldersControllerEnableInvite>>, TError,{id: string;data: InvitationDto}, TContext> => {
 
 const mutationKey = ['foldersControllerEnableInvite'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -547,10 +553,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof foldersControllerEnableInvite>>, {id: string}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof foldersControllerEnableInvite>>, {id: string;data: InvitationDto}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  foldersControllerEnableInvite(id,requestOptions)
+          return  foldersControllerEnableInvite(id,data,requestOptions)
         }
 
 
@@ -561,21 +567,86 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type FoldersControllerEnableInviteMutationResult = NonNullable<Awaited<ReturnType<typeof foldersControllerEnableInvite>>>
-
+    export type FoldersControllerEnableInviteMutationBody = InvitationDto
     export type FoldersControllerEnableInviteMutationError = unknown
 
     /**
  * @summary Create or rotate a collaboration invitation (owner only)
  */
 export const useFoldersControllerEnableInvite = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerEnableInvite>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerEnableInvite>>, TError,{id: string;data: InvitationDto}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof foldersControllerEnableInvite>>,
         TError,
-        {id: string},
+        {id: string;data: InvitationDto},
         TContext
       > => {
       return useMutation(getFoldersControllerEnableInviteMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Change the role the invitation link grants (owner only)
+ */
+export const foldersControllerUpdateInviteRole = (
+    id: string,
+    memberRoleDto: MemberRoleDto,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/folders/${id}/invitation`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: memberRoleDto, signal
+    },
+      options);
+    }
+
+
+
+
+export const getFoldersControllerUpdateInviteRoleMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerUpdateInviteRole>>, TError,{id: string;data: MemberRoleDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof foldersControllerUpdateInviteRole>>, TError,{id: string;data: MemberRoleDto}, TContext> => {
+
+const mutationKey = ['foldersControllerUpdateInviteRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof foldersControllerUpdateInviteRole>>, {id: string;data: MemberRoleDto}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  foldersControllerUpdateInviteRole(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FoldersControllerUpdateInviteRoleMutationResult = NonNullable<Awaited<ReturnType<typeof foldersControllerUpdateInviteRole>>>
+    export type FoldersControllerUpdateInviteRoleMutationBody = MemberRoleDto
+    export type FoldersControllerUpdateInviteRoleMutationError = unknown
+
+    /**
+ * @summary Change the role the invitation link grants (owner only)
+ */
+export const useFoldersControllerUpdateInviteRole = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerUpdateInviteRole>>, TError,{id: string;data: MemberRoleDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof foldersControllerUpdateInviteRole>>,
+        TError,
+        {id: string;data: MemberRoleDto},
+        TContext
+      > => {
+      return useMutation(getFoldersControllerUpdateInviteRoleMutationOptions(options), queryClient);
     }
     /**
  * @summary Disable new joins without removing existing members (owner only)
@@ -638,6 +709,137 @@ export const useFoldersControllerDisableInvite = <TError = unknown,
         TContext
       > => {
       return useMutation(getFoldersControllerDisableInviteMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Give an existing account access by email (owner only)
+ */
+export const foldersControllerAddMember = (
+    id: string,
+    addMemberDto: AddMemberDto,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/folders/${id}/members`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: addMemberDto, signal
+    },
+      options);
+    }
+
+
+
+
+export const getFoldersControllerAddMemberMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerAddMember>>, TError,{id: string;data: AddMemberDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof foldersControllerAddMember>>, TError,{id: string;data: AddMemberDto}, TContext> => {
+
+const mutationKey = ['foldersControllerAddMember'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof foldersControllerAddMember>>, {id: string;data: AddMemberDto}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  foldersControllerAddMember(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FoldersControllerAddMemberMutationResult = NonNullable<Awaited<ReturnType<typeof foldersControllerAddMember>>>
+    export type FoldersControllerAddMemberMutationBody = AddMemberDto
+    export type FoldersControllerAddMemberMutationError = unknown
+
+    /**
+ * @summary Give an existing account access by email (owner only)
+ */
+export const useFoldersControllerAddMember = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerAddMember>>, TError,{id: string;data: AddMemberDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof foldersControllerAddMember>>,
+        TError,
+        {id: string;data: AddMemberDto},
+        TContext
+      > => {
+      return useMutation(getFoldersControllerAddMemberMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Change a member's role (owner only)
+ */
+export const foldersControllerUpdateMemberRole = (
+    id: string,
+    memberId: string,
+    memberRoleDto: MemberRoleDto,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<void>(
+      {url: `/v1/folders/${id}/members/${memberId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: memberRoleDto, signal
+    },
+      options);
+    }
+
+
+
+
+export const getFoldersControllerUpdateMemberRoleMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerUpdateMemberRole>>, TError,{id: string;memberId: string;data: MemberRoleDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof foldersControllerUpdateMemberRole>>, TError,{id: string;memberId: string;data: MemberRoleDto}, TContext> => {
+
+const mutationKey = ['foldersControllerUpdateMemberRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof foldersControllerUpdateMemberRole>>, {id: string;memberId: string;data: MemberRoleDto}> = (props) => {
+          const {id,memberId,data} = props ?? {};
+
+          return  foldersControllerUpdateMemberRole(id,memberId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FoldersControllerUpdateMemberRoleMutationResult = NonNullable<Awaited<ReturnType<typeof foldersControllerUpdateMemberRole>>>
+    export type FoldersControllerUpdateMemberRoleMutationBody = MemberRoleDto
+    export type FoldersControllerUpdateMemberRoleMutationError = unknown
+
+    /**
+ * @summary Change a member's role (owner only)
+ */
+export const useFoldersControllerUpdateMemberRole = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof foldersControllerUpdateMemberRole>>, TError,{id: string;memberId: string;data: MemberRoleDto}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof foldersControllerUpdateMemberRole>>,
+        TError,
+        {id: string;memberId: string;data: MemberRoleDto},
+        TContext
+      > => {
+      return useMutation(getFoldersControllerUpdateMemberRoleMutationOptions(options), queryClient);
     }
     /**
  * @summary Remove a member and revoke the current invitation (owner only)

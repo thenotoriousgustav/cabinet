@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
 import {
@@ -19,6 +20,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Spinner } from "@/components/ui/spinner"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { readBookmarkImport } from "@/lib/import-bookmarks"
 import { toast } from "@/components/ui/sonner"
 import { AXIOS_INSTANCE, useBookmarksControllerImport } from "@/lib/api-client"
 import {
@@ -30,13 +33,20 @@ import {
 
 export default function IntegrationsPage() {
   const queryClient = useQueryClient()
+  const router = useRouter()
+  const [guide, setGuide] = useState("chrome")
+  const [queuedTask, setQueuedTask] = useState<string | null>(null)
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab")
+    if (requested && ["chrome", "safari", "raindrop", "arc-brave", "extension"].includes(requested)) setGuide(requested)
+  }, [])
   const importMutation = useBookmarksControllerImport()
   const [isImporting, setIsImporting] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [dragOver, setDragOver] = useState(false)
 
   const handleImportFile = async (file?: File | null) => {
-    if (!file) return
+    if (!file || isImporting) return
     if (!file.name.toLowerCase().endsWith(".html") && !file.name.toLowerCase().endsWith(".htm")) {
       toast.error("Pilih berkas HTML bookmark standar (misal: bookmarks.html).")
       return
@@ -45,15 +55,18 @@ export default function IntegrationsPage() {
     setIsImporting(true)
     const toastId = toast.loading(`Mengimpor "${file.name}" ke Cabinet...`)
     try {
-      const htmlContent = await file.text()
+      const htmlContent = await readBookmarkImport(file)
       const res: any = await importMutation.mutateAsync({ data: { htmlContent } })
       for (const queryKey of [["/v1/bookmarks"], ["infinite", "/v1/bookmarks"], ["/v1/folders"], ["/v1/tags"]]) {
         queryClient.invalidateQueries({ queryKey })
       }
-      const count = res?.data?.imported || 0
-      toast.success(`Impor selesai! Berhasil menambahkan ${count} bookmark.`, { id: toastId })
-    } catch {
-      toast.error("Gagal mengimpor berkas HTML. Pastikan format berkas valid.", { id: toastId })
+      const task = res?.data ?? res
+      if (!task?.id) throw new Error("Server tidak mengembalikan status impor.")
+      setQueuedTask(task.id)
+      queryClient.invalidateQueries({ queryKey: ["activity-overview"] })
+      toast.success("Impor masuk antrean. Anda boleh meninggalkan halaman ini.", { id: toastId, action: { label: "Lihat progres", onClick: () => router.push("/cabinet/activity") } })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal memulai impor. Pastikan format berkas valid.", { id: toastId })
     } finally {
       setIsImporting(false)
     }
@@ -99,6 +112,7 @@ export default function IntegrationsPage() {
         </div>
       </header>
 
+      {queuedTask && <Alert><AlertTitle>Impor sedang diproses di latar belakang</AlertTitle><AlertDescription>Bookmark yang sudah tersimpan tetap aman jika proses perlu diulang. <Link href="/cabinet/activity" className="underline underline-offset-4">Lihat progres dan status impor</Link></AlertDescription></Alert>}
       {/* Direct Interactive Dropzone Area */}
       <section aria-labelledby="quick-import-heading" className="flex flex-col gap-3">
         <h2 id="quick-import-heading" className="text-base font-medium text-foreground">
@@ -193,7 +207,7 @@ export default function IntegrationsPage() {
           </p>
         </div>
 
-        <Tabs defaultValue="chrome" className="flex flex-col gap-5">
+        <Tabs value={guide} onValueChange={setGuide} className="flex flex-col gap-5">
           <div className="overflow-x-auto pb-1">
             <TabsList className="h-10 w-max min-w-full justify-start gap-1 p-1">
               <TabsTrigger value="chrome" className="gap-2 text-xs">
@@ -418,6 +432,17 @@ export default function IntegrationsPage() {
               </CardHeader>
               <CardContent className="flex flex-col gap-6 p-5 pt-0 sm:p-6 sm:pt-0">
                 <ExtensionWorkflowIllustration />
+                <div className="flex flex-col gap-3 text-sm leading-6">
+                  <h3 className="font-medium">Pasang ekstensi dari folder proyek</h3>
+                  <p className="text-muted-foreground">Saat ini ekstensi dipasang manual, bukan dari Chrome Web Store. Gunakan folder <code>apps/extension</code> dari proyek Cabinet.</p>
+                  <ol className="list-decimal pl-5">
+                    <li>Buka <code>chrome://extensions</code> dan aktifkan Developer mode.</li>
+                    <li>Pilih Load unpacked, lalu pilih folder <code>apps/extension</code>.</li>
+                    <li>Buka Options ekstensi. Atur alamat aplikasi dan API sesuai server Cabinet Anda.</li>
+                    <li>Masuk ke Cabinet, lalu simpan satu halaman melalui ekstensi. Langkah panduan selesai setelah halaman benar-benar tersimpan di akun.</li>
+                  </ol>
+                  <p className="text-muted-foreground">Jika tertulis Saved locally, data masih menunggu sinkronisasi. Jangan hapus penyimpanan ekstensi sebelum sinkronisasi selesai.</p>
+                </div>
                 <div className="flex flex-col gap-3 text-sm text-foreground">
                   <p className="leading-relaxed text-muted-foreground">
                     Ekstensi Cabinet membaca sesi aktif Anda langsung di browser. Anda dapat menyimpan halaman web apapun ke folder yang diinginkan atau menyimpan kutipan teks (highlight) dengan pintasan keyboard.

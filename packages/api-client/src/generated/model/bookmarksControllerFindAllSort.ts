@@ -11,6 +11,7 @@ export type BookmarksControllerFindAllSort = typeof BookmarksControllerFindAllSo
 
 export const BookmarksControllerFindAllSort = {
   custom: 'custom',
+  relevance: 'relevance',
   newest: 'newest',
   oldest: 'oldest',
   title: 'title',

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { MAX_HIGHLIGHT_LENGTH, canonicalUrl, cleanMetadata, cleanTags, highlightDocument, saveBookmark, saveHighlight, saveableUrl, trimSlash } from "../src/cabinet.js"
+import { api, setWorkerSave, MAX_HIGHLIGHT_LENGTH, canonicalUrl, cleanMetadata, cleanTags, highlightDocument, saveBookmark, saveHighlight, saveableUrl, trimSlash } from "../src/cabinet.js"
 
 test("only web pages can be saved", () => {
   assert.equal(saveableUrl("https://example.com/a"), "https://example.com/a")
@@ -52,6 +52,7 @@ test("saving a highlight posts a note on the page to the chosen folder", async (
     return new Response(JSON.stringify({ success: true, data: { id: "h1" } }), { status: 201 })
   }
   try {
+    setWorkerSave((body) => api("/v1/bookmarks", { method: "POST", body }))
     assert.deepEqual(await saveHighlight({ text: "Quote", url: "https://example.com/a", title: " Article ", folderId: "f1" }), { id: "h1" })
     assert.equal(requests[0].url, "http://localhost:4000/v1/bookmarks")
     assert.equal(requests[0].init.credentials, "include")
@@ -60,6 +61,7 @@ test("saving a highlight posts a note on the page to the chosen folder", async (
     assert.equal(body.noteDocument.content[0].type, "blockquote")
     await assert.rejects(saveHighlight({ text: "Quote", url: "chrome://newtab" }), /web pages/)
   } finally {
+    setWorkerSave(undefined)
     delete globalThis.chrome
     globalThis.fetch = realFetch
   }
@@ -75,6 +77,8 @@ test("page metadata keeps web addresses resolved against the page and trims text
   }), { description: "A summary", imageUrl: "https://medium.com/cover.png" })
   assert.equal(cleanMetadata({ description: "x".repeat(2000) }).description.length, 1000)
   assert.deepEqual(cleanMetadata(null), {})
+  assert.deepEqual(cleanMetadata({ contentType: "ARTICLE" }), { contentType: "ARTICLE" })
+  assert.deepEqual(cleanMetadata({ contentType: "UNTRUSTED_VALUE" }), {})
 })
 
 test("saving a bookmark sends the page's metadata, with a typed description taking priority", async () => {
@@ -86,6 +90,7 @@ test("saving a bookmark sends the page's metadata, with a typed description taki
     return new Response(JSON.stringify({ success: true, data: { id: "b1" } }), { status: 201 })
   }
   try {
+    setWorkerSave((body) => api("/v1/bookmarks", { method: "POST", body }))
     const metadata = { description: "From page", imageUrl: "https://cdn.example.com/a.png", siteName: "Medium" }
     await saveBookmark({ url: "https://medium.com/@a/post", title: "Post", metadata })
     assert.deepEqual(requests[0], {
@@ -95,6 +100,7 @@ test("saving a bookmark sends the page's metadata, with a typed description taki
     await saveBookmark({ url: "https://medium.com/@a/post", description: "Mine", metadata })
     assert.equal(requests[1].description, "Mine")
   } finally {
+    setWorkerSave(undefined)
     delete globalThis.chrome
     globalThis.fetch = realFetch
   }

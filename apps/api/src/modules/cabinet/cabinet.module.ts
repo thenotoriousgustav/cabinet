@@ -11,6 +11,7 @@ import { TagsModule } from './tags/tags.module';
     PrismaModule,
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => ({
+        prefix: config.get<string>('BULLMQ_PREFIX', 'bull'),
         connection: {
           host: config.get<string>('REDIS_HOST', '127.0.0.1'),
           port: parseInt(config.get<string>('REDIS_PORT', '6379'), 10),

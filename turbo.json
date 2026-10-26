@@ -1,6 +1,7 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalPassThroughEnv": ["NODE_ENV", "OPERATIONS_USER_IDS", "BULLMQ_PREFIX"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

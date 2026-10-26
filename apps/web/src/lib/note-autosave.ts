@@ -7,7 +7,7 @@ export interface NoteSnapshot {
   noteDocument: Record<string, any>
 }
 
-export type NoteSaveStatus = "saved" | "unsaved" | "saving" | "error"
+export type NoteSaveStatus = "saved" | "unsaved" | "saving" | "error" | "offline" | "conflict"
 
 /** Serializes writes so an older request cannot overwrite more recent typing. */
 export class NoteAutosave<T extends object = NoteSnapshot> {
@@ -18,15 +18,21 @@ export class NoteAutosave<T extends object = NoteSnapshot> {
   private save: (snapshot: T) => Promise<void>
   private status: (status: NoteSaveStatus) => void
   private delay: number
+  private blocked = false
+  private disposed = false
+  private failures = 0
+  private retry: boolean
 
   constructor(
     save: (snapshot: T) => Promise<void>,
     status: (status: NoteSaveStatus) => void,
-    delay = 800
+    delay = 800,
+    options: { retry?: boolean } = {}
   ) {
     this.save = save
     this.status = status
     this.delay = delay
+    this.retry = options.retry ?? false
   }
 
   get hasUnsavedChanges() {
@@ -35,6 +41,7 @@ export class NoteAutosave<T extends object = NoteSnapshot> {
 
   schedule(snapshot: T) {
     this.pending = snapshot
+    if (this.blocked) return
     this.status("unsaved")
     clearTimeout(this.timer)
     this.timer = setTimeout(() => {
@@ -44,6 +51,7 @@ export class NoteAutosave<T extends object = NoteSnapshot> {
 
   flush(): Promise<boolean> {
     clearTimeout(this.timer)
+    if (this.blocked || this.disposed) return Promise.resolve(false)
     if (this.inFlight) return this.inFlight
     this.inFlight = this.drain().finally(() => {
       this.inFlight = null
@@ -58,9 +66,17 @@ export class NoteAutosave<T extends object = NoteSnapshot> {
       this.status("saving")
       try {
         await this.save(snapshot)
-      } catch {
+        this.failures = 0
+      } catch (error: any) {
         this.pending ??= snapshot
-        this.status("error")
+        const code = error.response?.status
+        if (code === 409) {
+          this.blocked = true
+          this.status("conflict")
+        } else if (this.retry && (!code || code >= 500 || code === 429 || code === 408)) {
+          this.status("offline")
+          if (!this.disposed) this.timer = setTimeout(() => void this.flush(), Math.min(30000, 1000 * 2 ** this.failures++))
+        } else this.status("error")
         return false
       }
     }
@@ -68,7 +84,13 @@ export class NoteAutosave<T extends object = NoteSnapshot> {
     return true
   }
 
+  resume() {
+    this.blocked = false
+    return this.flush()
+  }
+
   dispose() {
+    this.disposed = true
     clearTimeout(this.timer)
   }
 }

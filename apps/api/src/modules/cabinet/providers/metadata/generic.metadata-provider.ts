@@ -8,6 +8,7 @@ import {
   decodeHtmlEntities,
 } from "./metadata-provider.interface"
 import { validatePublicUrl } from "@/common/utils/ssrf"
+import { readMetadataHtml } from "./metadata-body"
 
 @Injectable()
 export class GenericMetadataProvider implements MetadataProvider {
@@ -75,14 +76,14 @@ export class GenericMetadataProvider implements MetadataProvider {
 
       return {
         contentType: this.detectContentType(html, url),
-        title: decodeHtmlEntities(rawTitle.trim() || this.getDomain(url)),
+        title: decodeHtmlEntities(rawTitle.trim() || this.getDomain(url)).slice(0, 1000),
         description: rawDescription
-          ? decodeHtmlEntities(rawDescription.trim())
+          ? decodeHtmlEntities(rawDescription.trim()).slice(0, 1000)
           : undefined,
         imageUrl: this.resolveUrl(rawImage, url),
         faviconUrl: this.resolveUrl(rawFavicon, url),
         siteName: rawSiteName
-          ? decodeHtmlEntities(rawSiteName.trim())
+          ? decodeHtmlEntities(rawSiteName.trim()).slice(0, 200)
           : undefined,
       }
     } catch (error) {
@@ -161,7 +162,7 @@ export class GenericMetadataProvider implements MetadataProvider {
           signal: AbortSignal.timeout(6000),
           redirect: "follow",
         })
-        if (!response.ok) continue
+        if (!response.ok) { await response.body?.cancel().catch(() => undefined); continue }
 
         const file = contentTypeFromMime(response.headers.get("content-type"))
         if (file) {
@@ -170,7 +171,7 @@ export class GenericMetadataProvider implements MetadataProvider {
           return { file }
         }
 
-        const html = await response.text()
+        const html = await readMetadataHtml(response)
         if (
           html &&
           (/<(?:meta|title)\b/i.test(html) ||
@@ -207,7 +208,8 @@ export class GenericMetadataProvider implements MetadataProvider {
   ): string | undefined {
     if (!value) return undefined
     try {
-      return new URL(decodeHtmlEntities(value.trim()), baseUrl).href
+      const url = new URL(decodeHtmlEntities(value.trim()), baseUrl)
+      return ["http:", "https:"].includes(url.protocol) && url.href.length <= 2048 ? url.href : undefined
     } catch {
       return undefined
     }

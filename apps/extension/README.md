@@ -28,6 +28,18 @@ Contributor or Editor), and tells you when the page is already in your Cabinet.
 
 Shortcuts can be changed at `chrome://extensions/shortcuts`.
 
+The extension sends the page's existing title, description, preview image, and declared article/video type. Cabinet saves these immediately and skips its own website fetch when the title, description, and preview are already complete. A successfully synchronized extension save completes the browser-save step in Cabinet's getting-started guide; opening this guide or leaving a save queued offline does not.
+
+Update the Cabinet API before reloading this extension version: the save payload now includes `source` and optional `contentType` fields.
+
+## Offline and retry
+
+After one successful sign-in, pages and highlights can be saved while the API is unavailable. “Saved locally” means the request is kept in this browser, not yet in your account. The background worker retries about once a minute, even after the popup closes. Open the popup to see pending saves, **Retry sync**, or **Discard** a request. Permission/validation failures stay visible and wait for an explicit retry.
+
+The queue remembers the originating account and API address and only sends when both match. Request UUIDs make retries safe after a lost response without creating duplicate bookmarks or highlights. Folder choices come from a cached account-specific list when offline; changed permissions may block a later save.
+
+Reload the extension after this update to grant its `alarms` permission. Keep unsynced data until the popup confirms it is synced: clearing extension storage or uninstalling removes local queued content.
+
 ## Settings
 
 Right-click the toolbar button → **Options** (or the sliders icon in the popup) to set:
@@ -41,7 +53,8 @@ The defaults (`http://localhost:3000`, `http://localhost:4000`) match local deve
 
 - `activeTab`: read the current tab's address and title when you click the button or use a shortcut.
   The extension cannot see your other tabs or your history.
-- `contextMenus`, `storage`: the right-click items and your settings.
+- `contextMenus`, `storage`: the right-click items, settings, cached account/folder information, and unsynced save requests.
+- `alarms`: retry queued saves in the background.
 - Host access to the Cabinet API only.
 
 ## Develop

@@ -20,6 +20,7 @@ import { defaultDisplayPreferences, densityOptions, isDensity, type DisplayPrefe
 import { MoodboardCard } from "../components/bookmark-moodboard-view"
 import { TagsSettings } from "./tags-settings"
 import { DeleteAccount, SignInMethods } from "./account-settings"
+import { readBookmarkImport } from "@/lib/import-bookmarks"
 
 const settingsTabs = ["appearance", "account", "data", "tags", "maintenance", "shortcuts"] as const
 type SettingsTab = (typeof settingsTabs)[number]
@@ -111,15 +112,16 @@ export default function SettingsPage() {
     setIsImporting(true)
     const toastId = toast.loading("Importing bookmarks from file...")
     try {
-      const res: any = await importMutation.mutateAsync({ data: { htmlContent: await file.text() } })
+      await importMutation.mutateAsync({ data: { htmlContent: await readBookmarkImport(file) } })
       for (const queryKey of [["/v1/bookmarks"], ["infinite", "/v1/bookmarks"], ["/v1/folders"], ["/v1/tags"]]) queryClient.invalidateQueries({ queryKey })
-      toast.success(`Import complete! ${res?.data?.imported || 0} bookmarks imported.`, { id: toastId })
-    } catch { toast.error("Failed to import bookmarks HTML file", { id: toastId }) }
+      queryClient.invalidateQueries({ queryKey: ["activity-overview"] })
+      toast.success("Import queued. You can leave this page.", { id: toastId, action: { label: "View progress", onClick: () => router.push("/cabinet/activity") } })
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to start bookmark import", { id: toastId }) }
     finally { setIsImporting(false); event.target.value = "" }
   }
   const handleScanLinks = async () => {
     setIsScanning(true)
-    try { await triggerHealthMutation.mutateAsync(); toast.success("Bookmark link check started in background"); setTimeout(() => refetchHealth(), 3000) }
+    try { await triggerHealthMutation.mutateAsync(); queryClient.invalidateQueries({ queryKey: ["activity-overview"] }); toast.success("Link check queued", { action: { label: "View progress", onClick: () => router.push("/cabinet/activity") } }) }
     catch { toast.error("Failed to start health scan") }
     finally { setIsScanning(false) }
   }
@@ -217,7 +219,7 @@ export default function SettingsPage() {
         <TabsContent value="data" className="flex flex-col gap-8">
           <SettingsSection title="Export your bookmarks" description="Download a standard HTML bookmarks file to keep a backup or move to another browser."><Button className="w-fit" disabled={isExporting} onClick={handleExport}>{isExporting ? <Spinner /> : <DownloadSimple data-icon="inline-start" />}{isExporting ? "Generating export…" : "Download HTML export"}</Button><p className="text-xs text-muted-foreground">Compatible with Chrome, Safari, Firefox, Arc, Brave, and Raindrop.io.</p></SettingsSection>
           <SettingsSection title="Import bookmarks" description="Bring an HTML bookmarks export into Cabinet. Folders are preserved and previews are fetched in the background.">
-            <label className="relative w-fit rounded-md has-focus-visible:outline-2 has-focus-visible:outline-ring"><span className="flex min-h-11 items-center gap-2 rounded-md border border-input px-4 text-sm">{isImporting ? <Spinner /> : <UploadSimple />}{isImporting ? "Importing…" : "Choose HTML file"}</span><input type="file" accept=".html" aria-label="Choose HTML file to import" onChange={handleImportFile} disabled={isImporting} className="absolute inset-0 size-full cursor-pointer opacity-0" /></label>
+            <label className="relative w-fit rounded-md has-focus-visible:outline-2 has-focus-visible:outline-ring"><span className="flex min-h-11 items-center gap-2 rounded-md border border-input px-4 text-sm">{isImporting ? <Spinner /> : <UploadSimple />}{isImporting ? "Queuing import…" : "Choose HTML file"}</span><input type="file" accept=".html" aria-label="Choose HTML file to import" onChange={handleImportFile} disabled={isImporting} className="absolute inset-0 size-full cursor-pointer opacity-0" /></label>
             <p className="text-xs text-muted-foreground">
               Butuh panduan ekspor langkah demi langkah dari Chrome, Safari, atau Raindrop?{" "}
               <Link href="/cabinet/integrations" className="text-foreground underline underline-offset-4 hover:text-primary">

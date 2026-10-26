@@ -32,6 +32,8 @@ import {
 } from "@/components/extensions/image-placeholder"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { VersionedNoteSave } from "@/lib/note-save"
 import {
   Select,
   SelectTrigger,
@@ -42,7 +44,7 @@ import {
 } from "@/components/ui/select"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { authClient } from "@/lib/auth-client"
-import { AXIOS_INSTANCE, useFoldersControllerFindAll } from "@/lib/api-client"
+import { AXIOS_INSTANCE, useFoldersControllerFindAll, uploadFileToR2 } from "@/lib/api-client"
 import {
   NoteAutosave,
   type NoteSnapshot,
@@ -99,6 +101,7 @@ export default function NoteEditorPage({ noteId }: { noteId: string }) {
   const [draft, setDraft] = useState<NoteSnapshot | null>(null)
   const [restored, setRestored] = useState(false)
   const [isNew, setIsNew] = useState(false)
+  const [revision, setRevision] = useState(0)
   // "owner" edits everything; "editor" edits title and content; "viewer" reads.
   const [access, setAccess] = useState<"owner" | "editor" | "viewer">("owner")
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -146,6 +149,7 @@ export default function NoteEditorPage({ noteId }: { noteId: string }) {
         const local = readDraft(draftKey)
         // A server-backed note requires an explicit choice before an old draft can overwrite it.
         setIsNew(!note)
+        setRevision(note?.noteRevision ?? 0)
         setAccess(note?.access ?? "owner")
         setDraft(note ? local : null)
         setRestored(!note && !!local)
@@ -192,8 +196,10 @@ export default function NoteEditorPage({ noteId }: { noteId: string }) {
     <NoteCanvas
       key={`${userId}:${noteId}:${restored}`}
       noteId={noteId}
+      userId={userId}
       draftKey={draftKey}
       initial={loaded}
+      initialRevision={revision}
       access={access}
       initiallySaved={!isNew}
       recovered={restored}
@@ -215,8 +221,10 @@ export default function NoteEditorPage({ noteId }: { noteId: string }) {
 
 function NoteCanvas({
   noteId,
+  userId,
   draftKey,
   initial,
+  initialRevision,
   access,
   initiallySaved,
   recovered,
@@ -225,8 +233,10 @@ function NoteCanvas({
   onDiscardDraft,
 }: {
   noteId: string
+  userId: string
   draftKey: string
   initial: NoteSnapshot
+  initialRevision: number
   access: "owner" | "editor" | "viewer"
   initiallySaved: boolean
   recovered: boolean
@@ -248,16 +258,23 @@ function NoteCanvas({
   const [backupUnavailable, setBackupUnavailable] = useState(false)
   const current = useRef(initial)
   const autosave = useRef<NoteAutosave | null>(null)
+  const versionedSave = useRef<VersionedNoteSave | null>(null)
+  const [resolving, setResolving] = useState(false)
 
   useEffect(() => {
     let active = true
+    const writer = new VersionedNoteSave(initialRevision, async (body) => {
+      const response = await AXIOS_INSTANCE.put(`/v1/bookmarks/${noteId}/note`, { ...body, expectedUserId: userId, folderId: body.folderId ?? null })
+      return response.data.data ?? response.data
+    })
+    versionedSave.current = writer
     const queue = new NoteAutosave(
       async (snapshot) => {
-        // null moves the note to Unfiled; omitting the field would keep its old folder.
-        await AXIOS_INSTANCE.put(`/v1/bookmarks/${noteId}/note`, { ...snapshot, folderId: snapshot.folderId ?? null })
+        await writer.save(snapshot)
         if (current.current === snapshot) {
           try {
-            localStorage.removeItem(draftKey)
+            // Another tab may have backed up a different draft while this request was in flight.
+            if (localStorage.getItem(draftKey) === JSON.stringify(snapshot)) localStorage.removeItem(draftKey)
           } catch {}
         }
         if (active) {
@@ -280,7 +297,9 @@ function NoteCanvas({
       },
       (value) => {
         if (active) setStatus(value)
-      }
+      },
+      800,
+      { retry: true }
     )
     autosave.current = queue
     if (recovered) queue.schedule(current.current)
@@ -290,13 +309,16 @@ function NoteCanvas({
         event.returnValue = ""
       }
     }
+    const reconnect = () => { if (queue.hasUnsavedChanges) void queue.flush() }
+    window.addEventListener("online", reconnect)
     window.addEventListener("beforeunload", warnBeforeLeaving)
     return () => {
       active = false
       queue.dispose()
       window.removeEventListener("beforeunload", warnBeforeLeaving)
+      window.removeEventListener("online", reconnect)
     }
-  }, [noteId, draftKey, recovered, queryClient])
+  }, [noteId, userId, draftKey, recovered, queryClient, initialRevision])
 
   const update = (snapshot: NoteSnapshot) => {
     // Viewers read shared notes; nothing is saved for them.
@@ -331,7 +353,13 @@ function NoteCanvas({
       TaskItem.configure({ nested: true }),
       Table.configure({ resizable: true }),
       ResizableImage,
-      ImagePlaceholder.configure({ allowUpload: false }),
+      ImagePlaceholder.configure({
+        allowUpload: true,
+        uploadFn: async (file: File) => {
+          const res = await uploadFileToR2(file)
+          return res.url
+        },
+      }),
       SlashCommand.configure({
         suggestion: getSlashCommandSuggestion(slashItems),
       }),
@@ -412,6 +440,10 @@ function NoteCanvas({
           >
             {access === "viewer"
               ? "View only"
+              : status === "conflict"
+              ? "Conflicting changes"
+              : status === "offline"
+              ? "Waiting to sync"
               : status === "saving"
               ? "Saving..."
               : status === "unsaved"
@@ -422,7 +454,7 @@ function NoteCanvas({
                     ? "All changes saved"
                     : "Start writing to save"}
           </span>
-          {status === "error" && (
+          {(status === "error" || status === "offline") && (
             <Button
               variant="outline"
               size="sm"
@@ -448,6 +480,32 @@ function NoteCanvas({
               Keep saved note
             </Button>
           </div>
+        )}
+        {status === "conflict" && (
+          <Alert className="mb-6">
+            <AlertTitle>This note changed elsewhere</AlertTitle>
+            <AlertDescription>
+              <p>Your draft is kept in this browser. Reload to review the saved note, or explicitly replace it with your current draft.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Review saved note</Button>
+                <Button size="sm" disabled={resolving} onClick={async () => {
+                  setResolving(true)
+                  try {
+                    const response = await AXIOS_INSTANCE.get(`/v1/bookmarks/${noteId}`)
+                    versionedSave.current?.rebase((response.data.data ?? response.data).noteRevision)
+                    await autosave.current?.resume()
+                  } catch { /* The draft and conflict remain until the server is reachable. */ }
+                  finally { setResolving(false) }
+                }}>Keep my draft</Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        {status === "offline" && (
+          <Alert className="mb-6">
+            <AlertTitle>Waiting to sync</AlertTitle>
+            <AlertDescription>Your changes are kept locally{backupUnavailable ? " in this tab only" : " in this browser"}. Saving will retry automatically when Cabinet is reachable. Keep this page open to sync.</AlertDescription>
+          </Alert>
         )}
         {status === "error" && (
           <p role="alert" className="mb-4 text-sm text-destructive">

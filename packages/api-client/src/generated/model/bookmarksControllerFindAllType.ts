@@ -12,4 +12,5 @@ export type BookmarksControllerFindAllType = typeof BookmarksControllerFindAllTy
 export const BookmarksControllerFindAllType = {
   BOOKMARK: 'BOOKMARK',
   NOTE: 'NOTE',
+  DRAWING: 'DRAWING',
 } as const;

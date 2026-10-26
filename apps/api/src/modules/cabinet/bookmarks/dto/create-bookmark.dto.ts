@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from "@nestjs/swagger"
 import {
   IsArray,
   IsEnum,
+  IsIn,
   IsObject,
   IsOptional,
   IsString,
@@ -9,9 +10,29 @@ import {
   IsUUID,
   MaxLength,
 } from "class-validator"
-import { BookmarkType } from "@prisma/client"
+import { BookmarkType, BookmarkContentType } from "@prisma/client"
 
 export class CreateBookmarkDto {
+  @ApiPropertyOptional({ enum: ["WEB", "EXTENSION", "IMPORT"], description: "Client source used for getting-started progress" })
+  @IsIn(["WEB", "EXTENSION", "IMPORT"])
+  @IsOptional()
+  source?: "WEB" | "EXTENSION" | "IMPORT"
+
+  @ApiPropertyOptional({ enum: BookmarkContentType, description: "Content type declared by the page" })
+  @IsEnum(BookmarkContentType)
+  @IsOptional()
+  contentType?: BookmarkContentType
+
+  @ApiPropertyOptional({ description: "Stable request UUID, reused only when retrying the same creation" })
+  @IsUUID()
+  @IsOptional()
+  clientRequestId?: string
+
+  @ApiPropertyOptional({ description: "Account that owns an offline request; reject replay under another session" })
+  @IsUUID()
+  @IsOptional()
+  expectedUserId?: string
+
   @ApiPropertyOptional({
     example: "https://nextjs.org",
     description: "URL (optional for standalone notes)",

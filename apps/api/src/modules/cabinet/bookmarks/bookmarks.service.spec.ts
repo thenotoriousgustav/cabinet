@@ -7,7 +7,8 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { MetadataService } from '@/modules/cabinet/services/metadata.service';
 import { LinkCheckerService } from '@/modules/cabinet/services/link-checker.service';
 import { CabinetMediaService } from '@/modules/cabinet/services/cabinet-media.service';
-import { getQueueToken } from '@nestjs/bullmq';
+import { MetadataQueueService } from '../services/metadata-queue.service';
+import { BackgroundTasksService } from '../services/background-tasks.service';
 import axios from 'axios';
 import type { Response } from 'express';
 import { CRAWLER_USER_AGENTS } from '@/modules/cabinet/providers/metadata/metadata-provider.interface';
@@ -18,7 +19,9 @@ describe('BookmarksService - Trash Functionality', () => {
 
   beforeEach(async () => {
     prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       bookmark: {
+        findUnique: jest.fn(),
         findMany: jest.fn(),
         findFirst: jest.fn(),
         count: jest.fn(),
@@ -51,7 +54,8 @@ describe('BookmarksService - Trash Functionality', () => {
           },
         },
         { provide: LinkCheckerService, useValue: { runScan: jest.fn() } },
-        { provide: getQueueToken('bookmark-enrichment'), useValue: { add: jest.fn() } },
+        { provide: MetadataQueueService, useValue: { enqueue: jest.fn().mockResolvedValue(true) } },
+        { provide: BackgroundTasksService, useValue: { create: jest.fn().mockResolvedValue({ id: 'task-1', status: 'PENDING' }) } },
       ],
     }).compile();
 
@@ -78,7 +82,8 @@ describe('BookmarksService - Trash Functionality', () => {
       const query = prisma.bookmark.findMany.mock.calls[0][0];
       expect(query.where.userId).toBeUndefined();
       expect(query.where.AND).toBeUndefined(); // Links and notes in the folder are both visible.
-      expect(query.where.OR).toBeDefined(); // Search must not overwrite authorization.
+      expect(query.where.id).toEqual({ in: [] }); // Ranked IDs never replace the access predicate.
+      expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain('CASE WHEN b."userId"');
       expect(query.include.folder.select).toEqual({ id: true, name: true, userId: true, parentId: true });
       expect(result.data[0]).toMatchObject({ canEdit: true, notes: 'mine' });
       expect(result.data[1]).toMatchObject({ canEdit: false, notes: null, noteDocument: null });
@@ -169,7 +174,7 @@ describe('BookmarksService - Trash Functionality', () => {
       await service.saveNote('editor', 'n', { title: 'Agenda', notes: 'x', noteDocument: doc, folderId: null, tags: ['mine'] } as any);
       expect(prisma.bookmark.update).toHaveBeenCalledWith(expect.objectContaining({
         where: { id: 'n' },
-        data: { title: 'Agenda', sortTitle: 'agenda', notes: 'x', noteDocument: doc },
+        data: { title: 'Agenda', sortTitle: 'agenda', notes: 'x', noteDocument: doc, noteRevision: { increment: 1 }, noteSaveId: null },
       }));
       prisma.folder.findFirst.mockResolvedValue(null);
       prisma.bookmark.update.mockClear();
@@ -341,7 +346,12 @@ describe('BookmarksService - Trash Functionality', () => {
       const where = prisma.bookmark.findMany.mock.calls[0][0].where;
       expect(where.userId).toBeUndefined();
       expect(where.AND).toEqual([{ OR: [{ userId: 'viewer' }, { folder: { is: { deletedAt: null, OR: [{ userId: 'viewer' }, { members: { some: { userId: 'viewer' } } }] } } }] }]);
-      expect(where.OR).toContainEqual({ AND: [{ OR: [{ userId: 'viewer' }, { type: 'NOTE' }] }, { notes: { contains: 'reference', mode: 'insensitive' } }] });
+      const sql = prisma.$queryRaw.mock.calls[0][0];
+      expect(sql.sql).toContain('CASE WHEN b."userId"');
+      expect(sql.sql).toContain("b.type = 'NOTE'");
+      expect(sql.sql).toContain('folder_members');
+      expect(sql.values).toContain('viewer');
+      expect(where.id).toEqual({ in: [] });
       expect(where.folderId).toBeUndefined();
       expect(where.isArchived).toBeUndefined();
       expect(result.data[0]).toMatchObject({ canEdit: false, notes: null, noteDocument: null });
@@ -438,7 +448,7 @@ describe('BookmarksService - Trash Functionality', () => {
       expect(prisma.bookmark.upsert).toHaveBeenCalledWith(expect.objectContaining({
         where: { id: 'note-1', userId: 'user-1', type: 'NOTE', deletedAt: null },
         create: expect.objectContaining({ id: 'note-1', userId: 'user-1', type: 'NOTE', ...snapshot }),
-        update: { ...snapshot, sortTitle: 'my note' },
+        update: { ...snapshot, sortTitle: 'my note', noteRevision: { increment: 1 }, noteSaveId: null },
       }));
     });
 
@@ -446,7 +456,7 @@ describe('BookmarksService - Trash Functionality', () => {
       prisma.bookmark.findFirst.mockResolvedValue({ id: 'note-1', userId: 'user-1', type: 'NOTE', folderId: 'folder-1' });
       await service.saveNote('user-1', 'note-1', snapshot);
       const update = prisma.bookmark.upsert.mock.calls[0][0].update;
-      expect(update).toEqual({ ...snapshot, sortTitle: 'my note' });
+      expect(update).toEqual({ ...snapshot, sortTitle: 'my note', noteRevision: { increment: 1 }, noteSaveId: null });
       expect(update.folderId).toBeUndefined();
       expect(update.tags).toBeUndefined();
     });
@@ -477,7 +487,7 @@ describe('BookmarksService - Trash Functionality', () => {
       prisma.bookmark.upsert.mockRejectedValue({ code: 'P2002' });
       await service.saveNote('user-1', 'note-1', snapshot);
       expect(prisma.bookmark.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: 'note-1', userId: 'user-1', type: 'NOTE', deletedAt: null }, data: { ...snapshot, sortTitle: 'my note' },
+        where: { id: 'note-1', userId: 'user-1', type: 'NOTE', deletedAt: null }, data: { ...snapshot, sortTitle: 'my note', noteRevision: { increment: 1 }, noteSaveId: null },
       }));
     });
   });
@@ -790,7 +800,7 @@ describe('BookmarksService - Trash Functionality', () => {
   });
 
   describe('importBookmarks', () => {
-    it('should create bookmarks and enqueue enrichment jobs', async () => {
+    it('queues a durable import rather than doing network or database work in the request', async () => {
       prisma.bookmark.create.mockResolvedValue({
         id: 'imported-bm-1',
         url: 'https://ui.shadcn.com',
@@ -804,25 +814,15 @@ describe('BookmarksService - Trash Functionality', () => {
 
       const result = await service.importBookmarks('user-1', htmlContent);
 
-      expect(result.imported).toBe(1);
-      expect(prisma.bookmark.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            url: 'https://ui.shadcn.com',
-            userId: 'user-1',
-          }),
-        }),
-      );
-      const queue = (service as any).enrichmentQueue;
-      expect(queue.add).toHaveBeenCalledWith('enrich', {
-        bookmarkId: 'imported-bm-1',
-        url: 'https://ui.shadcn.com',
-      });
+      expect(result).toMatchObject({ id: 'task-1', status: 'PENDING' });
+      expect((service as any).tasks.create).toHaveBeenCalledWith('user-1', 'IMPORT', { html: htmlContent });
+      expect(prisma.bookmark.create).not.toHaveBeenCalled();
+      expect((service as any).metadataService.extract).not.toHaveBeenCalled();
     });
   });
 
   describe('enrichMissingMetadata', () => {
-    it('should find bookmarks with missing image/description and enqueue them', async () => {
+    it('queues only pending or failed web bookmarks, not completed items lacking a cover', async () => {
       prisma.bookmark.findMany.mockResolvedValue([
         { id: 'bm-1', url: 'https://example.com' },
         { id: 'bm-2', url: 'https://test.com' },
@@ -831,15 +831,31 @@ describe('BookmarksService - Trash Functionality', () => {
       const result = await service.enrichMissingMetadata('user-1');
 
       expect(result.queued).toBe(2);
-      const queue = (service as any).enrichmentQueue;
-      expect(queue.add).toHaveBeenCalledWith('enrich', {
-        bookmarkId: 'bm-1',
-        url: 'https://example.com',
-      });
-      expect(queue.add).toHaveBeenCalledWith('enrich', {
-        bookmarkId: 'bm-2',
-        url: 'https://test.com',
-      });
+      expect(prisma.bookmark.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'user-1', deletedAt: null, type: 'BOOKMARK', url: { not: null }, metadataStatus: { in: ['PENDING', 'FAILED'] } } }));
+      const queue = (service as any).metadataQueue;
+      expect(queue.enqueue).toHaveBeenCalledWith({ id: 'bm-1', url: 'https://example.com' }, true);
+      expect(queue.enqueue).toHaveBeenCalledWith({ id: 'bm-2', url: 'https://test.com' }, true);
+    });
+  });
+
+  describe('fast bookmark creation', () => {
+    it('saves immediately without requesting website metadata', async () => {
+      prisma.bookmark.create.mockResolvedValue({ id: 'fast', url: 'https://react.dev/learn' });
+      await service.create('user-1', { url: 'https://react.dev/learn' });
+      expect((service as any).metadataService.extract).not.toHaveBeenCalled();
+      expect(prisma.bookmark.create.mock.calls[0][0].data).toMatchObject({ title: 'react.dev', metadataStatus: 'PENDING' });
+      expect((service as any).metadataQueue.enqueue).toHaveBeenCalledTimes(1);
+    });
+    it('keeps complete client metadata and skips unnecessary worker requests', async () => {
+      prisma.bookmark.create.mockResolvedValue({ id: 'complete', url: 'https://react.dev/learn' });
+      await service.create('user-1', { url: 'https://react.dev/learn', title: 'My reference', description: 'Page description', imageUrl: 'https://react.dev/cover.png' });
+      expect(prisma.bookmark.create.mock.calls[0][0].data).toMatchObject({ title: 'My reference', description: 'Page description', metadataStatus: 'COMPLETED' });
+      expect((service as any).metadataService.extract).not.toHaveBeenCalled();
+      expect((service as any).metadataQueue.enqueue).not.toHaveBeenCalled();
+    });
+    it('queues manual link checks under the requesting account only', async () => {
+      await service.triggerHealthCheck('user-1');
+      expect((service as any).tasks.create).toHaveBeenCalledWith('user-1', 'LINK_CHECK');
     });
   });
 
@@ -861,7 +877,7 @@ describe('BookmarksService - Trash Functionality', () => {
       const data = prisma.bookmark.create.mock.calls[0][0].data;
       expect(data).toMatchObject({ type: 'NOTE', url: 'https://example.com/a', notes: 'The next note you play\ndetermines if it is good.\nMiles', metadataStatus: 'COMPLETED' });
       expect((service as any).metadataService.extract).not.toHaveBeenCalled();
-      expect((service as any).enrichmentQueue.add).not.toHaveBeenCalled();
+      expect((service as any).metadataQueue.enqueue).not.toHaveBeenCalled();
     });
 
     it('does not count highlights sharing a page address as duplicate links', async () => {

@@ -14,7 +14,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: proc
 const users = [randomUUID(), randomUUID(), randomUUID()]
 const [owner, member, outsider] = users
 const folders = new FoldersService(prisma)
-const bookmarks = new BookmarksService(prisma, { extract: async () => ({}) }, {}, { isVideoUrl: () => false }, { add: async () => {} })
+const bookmarks = new BookmarksService(prisma, { extract: async () => ({}) }, { isVideoUrl: () => false }, { enqueue: async () => true }, {})
 try {
   await prisma.user.createMany({ data: users.map((id) => ({ id, email: `collaboration-${id}@example.com`, name: "Collaboration check" })) })
   const parent = await folders.create(owner, { name: "Private parent" })

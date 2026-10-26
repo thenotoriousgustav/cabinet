@@ -1,0 +1,316 @@
+{
+  "measuredAt": "2026-10-26T04:41:15.249Z",
+  "environment": {
+    "node": "v26.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "apiMode": "compiled NestJS, isolated PostgreSQL database and Redis queues; periodic scans disabled"
+  },
+  "fixture": {
+    "initialBookmarks": 1000,
+    "importedBookmarks": 500
+  },
+  "idle": {
+    "memoryBytes": {
+      "rss": 87474176,
+      "heapUsed": 71753816,
+      "heapTotal": 138772480,
+      "external": 12966794
+    },
+    "cpuPercent": 0.17,
+    "eventLoop": {
+      "meanMs": 21.44,
+      "p95Ms": 22.09
+    }
+  },
+  "readLoad": {
+    "endpoints": [
+      {
+        "path": "/v1/bookmarks?limit=20",
+        "requests": 80,
+        "concurrency": 4,
+        "p50Ms": 8.64,
+        "p95Ms": 24.86,
+        "requestsPerSecond": 358.3
+      },
+      {
+        "path": "/v1/bookmarks?search=interface&limit=20",
+        "requests": 80,
+        "concurrency": 4,
+        "p50Ms": 10.23,
+        "p95Ms": 14.79,
+        "requestsPerSecond": 366.15
+      },
+      {
+        "path": "/v1/bookmarks?search=interface&domain=developer.mozilla.org&limit=20",
+        "requests": 80,
+        "concurrency": 4,
+        "p50Ms": 10.18,
+        "p95Ms": 13.75,
+        "requestsPerSecond": 372.91
+      }
+    ],
+    "memoryBytes": {
+      "rss": 214564864,
+      "heapUsed": 98627360,
+      "heapTotal": 135364608,
+      "external": 10860216
+    },
+    "sampledCpuPercent": 0.17,
+    "averageCpuPercent": 107.46,
+    "durationMs": 825.77
+  },
+  "workerLoad": {
+    "samples": 4,
+    "peakRssBytes": 257589248,
+    "peakCpuPercent": 0.17
+  },
+  "serverMeasurements": {
+    "startedAt": "2026-10-26T04:41:01.181Z",
+    "measuredAt": "2026-10-26T04:41:15.248Z",
+    "uptimeSeconds": 14,
+    "cpuTotalMicros": 3176684,
+    "memoryBytes": {
+      "rss": 262619136,
+      "heapUsed": 133661216,
+      "heapTotal": 172851200,
+      "external": 10719826
+    },
+    "cpuPercent": 0.17,
+    "eventLoop": {
+      "meanMs": 21.16,
+      "p95Ms": 22.09
+    },
+    "routes": [
+      {
+        "name": "GET /v1/operations/metrics",
+        "count": 7,
+        "errors": 0,
+        "samples": 7,
+        "p50Ms": 4.28,
+        "p95Ms": 61.67,
+        "maxMs": 61.670208
+      },
+      {
+        "name": "GET /v1/bookmarks",
+        "count": 86,
+        "errors": 0,
+        "samples": 86,
+        "p50Ms": 6.68,
+        "p95Ms": 26.75,
+        "maxMs": 41.288875
+      },
+      {
+        "name": "POST /v1/bookmarks/import",
+        "count": 1,
+        "errors": 0,
+        "samples": 1,
+        "p50Ms": 19.67,
+        "p95Ms": 19.67,
+        "maxMs": 19.672792
+      },
+      {
+        "name": "GET /v1/bookmarks [search]",
+        "count": 170,
+        "errors": 0,
+        "samples": 170,
+        "p50Ms": 8.36,
+        "p95Ms": 12.34,
+        "maxMs": 15.766208
+      },
+      {
+        "name": "POST /v1/bookmarks",
+        "count": 1,
+        "errors": 0,
+        "samples": 1,
+        "p50Ms": 11.47,
+        "p95Ms": 11.47,
+        "maxMs": 11.469167
+      },
+      {
+        "name": "GET /v1/activity",
+        "count": 6,
+        "errors": 0,
+        "samples": 6,
+        "p50Ms": 4.44,
+        "p95Ms": 9.81,
+        "maxMs": 9.812792
+      },
+      {
+        "name": "POST /v1/activity/tasks/:id/retry",
+        "count": 1,
+        "errors": 0,
+        "samples": 1,
+        "p50Ms": 3.32,
+        "p95Ms": 3.32,
+        "maxMs": 3.321625
+      },
+      {
+        "name": "GET /v1/activity/overview",
+        "count": 1,
+        "errors": 0,
+        "samples": 1,
+        "p50Ms": 3,
+        "p95Ms": 3,
+        "maxMs": 2.995208
+      }
+    ],
+    "queries": [
+      {
+        "name": "DELETE auth_sessions",
+        "count": 1,
+        "errors": 0,
+        "samples": 1,
+        "p50Ms": 24.79,
+        "p95Ms": 24.79,
+        "maxMs": 24.79491699999994
+      },
+      {
+        "name": "SELECT background_tasks",
+        "count": 22,
+        "errors": 0,
+        "samples": 22,
+        "p50Ms": 0.97,
+        "p95Ms": 5.37,
+        "maxMs": 7.789708000000246
+      },
+      {
+        "name": "WITH bookmarks",
+        "count": 170,
+        "errors": 0,
+        "samples": 170,
+        "p50Ms": 3.47,
+        "p95Ms": 4.91,
+        "maxMs": 6.400582999998733
+      },
+      {
+        "name": "UPDATE auth_sessions",
+        "count": 2,
+        "errors": 0,
+        "samples": 2,
+        "p50Ms": 1.57,
+        "p95Ms": 2.76,
+        "maxMs": 2.7607910000006086
+      },
+      {
+        "name": "SELECT auth_sessions",
+        "count": 273,
+        "errors": 0,
+        "samples": 273,
+        "p50Ms": 0.51,
+        "p95Ms": 2.35,
+        "maxMs": 15.77179199999955
+      },
+      {
+        "name": "INSERT background_tasks",
+        "count": 1,
+        "errors": 0,
+        "samples": 1,
+        "p50Ms": 2.05,
+        "p95Ms": 2.05,
+        "maxMs": 2.0485420000004524
+      },
+      {
+        "name": "SELECT users",
+        "count": 553,
+        "errors": 0,
+        "samples": 512,
+        "p50Ms": 0.49,
+        "p95Ms": 1.42,
+        "maxMs": 3.560083999998824
+      },
+      {
+        "name": "UPDATE background_tasks",
+        "count": 24,
+        "errors": 0,
+        "samples": 24,
+        "p50Ms": 0.36,
+        "p95Ms": 0.86,
+        "maxMs": 4.757208000000901
+      },
+      {
+        "name": "INSERT folders",
+        "count": 1,
+        "errors": 0,
+        "samples": 1,
+        "p50Ms": 0.78,
+        "p95Ms": 0.78,
+        "maxMs": 0.7758329999996931
+      },
+      {
+        "name": "SELECT bookmarks",
+        "count": 1882,
+        "errors": 0,
+        "samples": 512,
+        "p50Ms": 0.35,
+        "p95Ms": 0.65,
+        "maxMs": 3.1734159999996336
+      },
+      {
+        "name": "SELECT folders",
+        "count": 1513,
+        "errors": 0,
+        "samples": 512,
+        "p50Ms": 0.46,
+        "p95Ms": 0.63,
+        "maxMs": 2.357124999998632
+      },
+      {
+        "name": "COMMIT other",
+        "count": 1526,
+        "errors": 0,
+        "samples": 512,
+        "p50Ms": 0.31,
+        "p95Ms": 0.58,
+        "maxMs": 1.1775410000009288
+      },
+      {
+        "name": "UPDATE users",
+        "count": 1,
+        "errors": 0,
+        "samples": 1,
+        "p50Ms": 0.55,
+        "p95Ms": 0.55,
+        "maxMs": 0.5545000000001892
+      },
+      {
+        "name": "UPDATE bookmarks",
+        "count": 1000,
+        "errors": 0,
+        "samples": 512,
+        "p50Ms": 0.34,
+        "p95Ms": 0.53,
+        "maxMs": 1.7177080000001297
+      },
+      {
+        "name": "INSERT bookmarks",
+        "count": 501,
+        "errors": 0,
+        "samples": 501,
+        "p50Ms": 0.35,
+        "p95Ms": 0.52,
+        "maxMs": 5.963541000000987
+      },
+      {
+        "name": "SELECT tags",
+        "count": 756,
+        "errors": 0,
+        "samples": 512,
+        "p50Ms": 0.28,
+        "p95Ms": 0.41,
+        "maxMs": 1.1907499999997526
+      }
+    ],
+    "sampling": "Latency percentiles use the last 512 samples per route/query group; counters reset when this API process restarts. CPU is relative to one core over the latest five-second interval.",
+    "jobs": {
+      "tasks": {
+        "COMPLETED": 1
+      },
+      "metadata": {
+        "COMPLETED": 1001,
+        "FAILED": 500
+      }
+    }
+  },
+  "caveat": "Local baseline, not a before/after comparison or a production capacity guarantee. Other applications and shared PostgreSQL/Redis affect these numbers. Memory covers this API process only, not PostgreSQL, Redis, Next.js, or child media processes."
+}

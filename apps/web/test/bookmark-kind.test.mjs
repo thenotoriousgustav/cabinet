@@ -62,3 +62,16 @@ test("highlights are notes on a page that open with a quote", async () => {
   assert.equal(highlightQuote({ type: "BOOKMARK", url: "https://example.com/a", noteDocument: doc(quote) }), null)
   assert.equal(highlightQuote({ type: "NOTE", url: "https://example.com/a", noteDocument: "{broken" }), null)
 })
+
+test("pdf and image detection matches content type and file extensions", async () => {
+  const { isPdfBookmark, isImageBookmark } = await import("../src/lib/bookmark-kind.ts")
+  assert.equal(isPdfBookmark({ url: "https://example.com/doc.pdf" }), true)
+  assert.equal(isPdfBookmark({ url: "https://example.com/item", contentType: "PDF" }), true)
+  assert.equal(isPdfBookmark({ url: "https://example.com/not-pdf" }), false)
+
+  assert.equal(isImageBookmark({ url: "https://example.com/pic.png" }), true)
+  assert.equal(isImageBookmark({ url: "https://example.com/pic.jpg" }), true)
+  assert.equal(isImageBookmark({ url: "https://example.com/pic.webp" }), true)
+  assert.equal(isImageBookmark({ url: "https://example.com/item", contentType: "IMAGE" }), true)
+  assert.equal(isImageBookmark({ url: "https://example.com/page.html" }), false)
+})

@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import { SearchHighlight } from "./search-highlight"
 import { useDndContext } from "@dnd-kit/core"
 import { Masonry, MasonryItem } from "@/components/ui/masonry"
 import { bookmarkCollisionDetection, masonrySortingStrategy } from "@/lib/bookmark-sortable"
@@ -27,6 +28,7 @@ import {
   LinkSimple,
   ArrowCounterClockwise,
   FileText,
+  FilePdf,
   DownloadSimple,
   VideoCamera,
   Clock,
@@ -52,7 +54,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 import { toast } from "@/components/ui/sonner"
-import { canDownloadMedia, highlightQuote, isDrawingBookmark, isNoteBookmark, isVideoBookmark, itemAccess } from "@/lib/bookmark-kind"
+import { canDownloadMedia, highlightQuote, isDrawingBookmark, isNoteBookmark, isVideoBookmark, isPdfBookmark, itemAccess } from "@/lib/bookmark-kind"
 import { safeHttpUrl } from "@/lib/shared-collection"
 import { activateBookmark, bookmarkOriginalHref } from "@/lib/bookmark-click"
 import { getProxiedImageUrl } from "@/lib/bookmark-image"
@@ -149,7 +151,7 @@ function renderNoteBlock(node: NoteDocNode, index: number) {
           level === 1 ? "text-sm" : level === 2 ? "text-[13px]" : "text-xs"
         )}
       >
-        {text}
+        <SearchHighlight text={text} />
       </p>
     )
   }
@@ -171,7 +173,7 @@ function renderNoteBlock(node: NoteDocNode, index: number) {
       >
         {items.map((item, itemIndex) => (
           <li key={`list-item-${index}-${itemIndex}`} className="list-item">
-            <span className="block truncate">{item}</span>
+            <span className="block truncate"><SearchHighlight text={item} /></span>
           </li>
         ))}
       </ListTag>
@@ -194,7 +196,7 @@ function renderNoteBlock(node: NoteDocNode, index: number) {
           <li key={`task-item-${index}-${itemIndex}`}>
             <span className="flex items-center gap-1.5">
               <span aria-hidden="true" className="flex size-3 shrink-0 items-center justify-center rounded-xs border border-current">{item.checked && <Check />}</span>
-              <span className="truncate">{item.text}</span>
+              <span className="truncate"><SearchHighlight text={item.text} /></span>
             </span>
           </li>
         ))}
@@ -207,7 +209,7 @@ function renderNoteBlock(node: NoteDocNode, index: number) {
     if (!text) return null
     return (
       <blockquote key={`quote-${index}`} className="line-clamp-4 border-l-2 border-library-olive/50 pl-3 font-serif text-sm leading-relaxed text-foreground">
-        {text}
+        <SearchHighlight text={text} />
       </blockquote>
     )
   }
@@ -220,7 +222,7 @@ function renderNoteBlock(node: NoteDocNode, index: number) {
         key={`code-${index}`}
         className="line-clamp-2 rounded-sm bg-muted/60 px-2 py-1 font-mono text-xs leading-relaxed text-foreground/90"
       >
-        {text}
+        <SearchHighlight text={text} />
       </pre>
     )
   }
@@ -230,7 +232,7 @@ function renderNoteBlock(node: NoteDocNode, index: number) {
 
   return (
     <p key={`paragraph-${index}`} className="line-clamp-2 text-xs leading-relaxed text-foreground/90">
-      {text}
+      <SearchHighlight text={text} />
     </p>
   )
 }
@@ -244,9 +246,7 @@ function NoteContentPreview({ bookmark }: { bookmark: any }) {
   if (!blocks.length) {
     return (
       <p className="line-clamp-4 text-[13px] leading-6 text-foreground/90">
-        {bookmark.notes ||
-          bookmark.description ||
-          "Click to add note content..."}
+        <SearchHighlight text={bookmark.notes || bookmark.description || "Click to add note content..."} />
       </p>
     )
   }
@@ -256,6 +256,44 @@ function NoteContentPreview({ bookmark }: { bookmark: any }) {
       {blocks.map((node, index) => renderNoteBlock(node, index))}
     </div>
   )
+}
+
+function PdfPagePreview({ src }: { src: string }) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    let cancelRender: (() => void) | undefined
+
+    void (async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist")
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+        const pdf = await pdfjs.getDocument({ url: src, withCredentials: true }).promise
+        const page = await pdf.getPage(1)
+        if (cancelled || !canvasRef.current) return
+
+        const viewport = page.getViewport({ scale: 1.5 })
+        const canvas = canvasRef.current
+        const context = canvas.getContext("2d")
+        if (!context) return
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        const task = page.render({ canvas, canvasContext: context, viewport })
+        cancelRender = () => task.cancel()
+        await task.promise
+      } catch {
+        // Keep the page blank when the PDF cannot be rendered; the card remains openable.
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      cancelRender?.()
+    }
+  }, [src])
+
+  return <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 m-auto h-full w-full bg-white object-contain" />
 }
 
 export function MoodboardCard({
@@ -291,6 +329,7 @@ export function MoodboardCard({
   const quote = highlightQuote(bookmark)
   const sourceHref = isNote ? safeHttpUrl(bookmark.url || "")?.href : undefined
   const isDrawing = isDrawingBookmark(bookmark)
+  const isPdf = isPdfBookmark(bookmark)
   // Notes and drawings live in Cabinet; everything link-specific skips them.
   const inCabinet = isNote || isDrawing
   const isVideo = isVideoBookmark(bookmark)
@@ -600,9 +639,9 @@ export function MoodboardCard({
   if (preferences.density === "visual") {
     const showPicture = !inCabinet && preferences.showImage && imageStatus !== "error"
     // A link without a usable picture becomes a type-only card that carries its own title.
-    const typeOnly = !inCabinet && !showPicture
+    const typeOnly = !inCabinet && !showPicture && !isPdf
     // A quote is credited to its site, the way a pull quote names its source.
-    const caption = preferences.showTitle && !typeOnly
+    const caption = (preferences.showTitle || isPdf) && !typeOnly
       ? quote ? hostname.replace(/^www\./, "") : bookmark.title || (isDrawing ? "Untitled drawing" : isNote ? "Untitled note" : hostname)
       : ""
     const linkStatus = inCabinet ? "" : bookmark.status === "BROKEN" ? "Broken" : bookmark.status === "REDIRECTED" ? "Redirected" : ""
@@ -624,7 +663,7 @@ export function MoodboardCard({
           {quote ? (
             <figure onClick={activate} className="flex flex-col items-center gap-2 px-8 py-7 text-center font-serif text-foreground">
               <span aria-hidden="true" className="text-2xl leading-none text-muted-foreground">“</span>
-              <blockquote className="line-clamp-[10] text-lg leading-relaxed whitespace-pre-line">{quote}</blockquote>
+              <blockquote className="line-clamp-[10] text-lg leading-relaxed whitespace-pre-line"><SearchHighlight text={quote} /></blockquote>
               <span aria-hidden="true" className="text-2xl leading-none text-muted-foreground">”</span>
             </figure>
           ) : isNote ? (
@@ -638,6 +677,24 @@ export function MoodboardCard({
                 ? <img src={bookmark.imageUrl} alt="" draggable={false} className="h-full w-full object-contain p-3" />
                 : <span className="text-xs text-neutral-500">Empty drawing</span>}
             </div>
+          ) : isPdf ? (
+            <a
+              href={originalHref || undefined}
+              aria-label={`Open ${bookmark.title || "PDF"} in Cabinet`}
+              target="_blank"
+              rel="noopener noreferrer"
+              draggable={false}
+              onClick={activate}
+              className="relative flex aspect-[3/4] w-full flex-col justify-end overflow-hidden bg-muted/20 text-center hover:bg-muted/30"
+            >
+              {originalHref ? (
+                <PdfPagePreview src={originalHref} />
+              ) : (
+                <div className="flex size-12 items-center justify-center rounded-lg bg-card shadow-xs">
+                  <FilePdf className="size-7 text-destructive" />
+                </div>
+              )}
+            </a>
           ) : (
             <a
               href={originalHref || undefined}
@@ -676,7 +733,7 @@ export function MoodboardCard({
               ) : (
                 <span className="flex min-h-36 flex-col gap-3 p-6">
                   {preferences.showWebsite && <span className="truncate font-serif text-base text-muted-foreground">{bookmark.siteName || hostname.replace(/^www\./, "")}</span>}
-                  {preferences.showTitle && <span className="line-clamp-4 font-serif text-xl leading-snug text-foreground">{bookmark.title || bookmark.url}</span>}
+                  {preferences.showTitle && <span className="line-clamp-4 font-serif text-xl leading-snug text-foreground"><SearchHighlight text={bookmark.title || bookmark.url} /></span>}
                 </span>
               )}
             </a>
@@ -822,7 +879,7 @@ export function MoodboardCard({
                 {isDrawing
                   ? <Scribble aria-label="Drawing" className="mt-1 size-4 shrink-0 text-muted-foreground" />
                   : <FileText aria-label="Note" className="mt-1 size-4 shrink-0 text-muted-foreground" />}
-                <span className="line-clamp-2 group-hover/title:underline">{bookmark.title || (isDrawing ? "Untitled drawing" : "Untitled note")}</span>
+                <span className="line-clamp-2 group-hover/title:underline"><SearchHighlight text={bookmark.title || (isDrawing ? "Untitled drawing" : "Untitled note")} /></span>
               </button>
             ) : (
               <a
@@ -834,7 +891,7 @@ export function MoodboardCard({
                 onClick={(event) => event.stopPropagation()}
                 className={cn("group/link line-clamp-2 leading-6 font-medium text-foreground decoration-foreground/30 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring", preferences.density === "compact" ? "text-sm" : "text-[15px]")}
               >
-                {bookmark.title || bookmark.url}
+                <SearchHighlight text={bookmark.title || bookmark.url} />
               </a>
             ))}
           {!inCabinet &&
@@ -862,7 +919,7 @@ export function MoodboardCard({
             )}
           {preferences.showDescription && !inCabinet && bookmark.description && (
             <p className={cn("line-clamp-2 leading-5 text-muted-foreground", preferences.density === "compact" ? "text-xs" : "text-sm")}>
-              {bookmark.description}
+              <SearchHighlight text={bookmark.description} />
             </p>
           )}
           {preferences.showWebsite && hostname && (imageStatus !== "error" || !preferences.showImage) && (

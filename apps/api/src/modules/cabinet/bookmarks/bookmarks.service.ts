@@ -3,13 +3,8 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
-  Inject,
-  forwardRef,
-  Logger,
-  OnModuleInit,
+  ConflictException,
 } from "@nestjs/common"
-import { InjectQueue } from "@nestjs/bullmq"
-import { Queue } from "bullmq"
 import {
   BookmarkType,
   BookmarkContentType,
@@ -19,7 +14,6 @@ import { Response } from "express"
 import axios from "axios"
 import { PrismaService } from "@/prisma/prisma.service"
 import { MetadataService } from "@/modules/cabinet/services/metadata.service"
-import { LinkCheckerService } from "@/modules/cabinet/services/link-checker.service"
 import { CabinetMediaService } from "@/modules/cabinet/services/cabinet-media.service"
 import { CreateBookmarkDto } from "./dto/create-bookmark.dto"
 import { UpdateBookmarkDto } from "./dto/update-bookmark.dto"
@@ -32,6 +26,10 @@ import { BookmarkSort, bookmarkOrderBy, bookmarkSortFields } from "./bookmark-or
 import { accessibleFolder, editableBookmark, editableFolder, folderSummary, shareableNoteFields, viewableBookmark, writableFolder } from "../folders/folder-access"
 import { frameBlockedByHeaders } from "./embed-policy"
 import { noteDocumentText } from "./note-text"
+import { bookmarkSearchQuery, searchRefinements } from "./bookmark-search"
+import { parseBookmarkImport } from "./bookmark-import"
+import { BackgroundTasksService, stableTaskId } from "../services/background-tasks.service"
+import { MetadataQueueService } from "../services/metadata-queue.service"
 import {
   MAX_PROXIED_PAGE_BYTES,
   decodeHtml,
@@ -47,29 +45,37 @@ import {
 const duplicateCandidates = (userId: string) => ({ userId, deletedAt: null, type: BookmarkType.BOOKMARK })
 
 @Injectable()
-export class BookmarksService implements OnModuleInit {
-  private readonly logger = new Logger(BookmarksService.name)
-
+export class BookmarksService {
   constructor(
     private prisma: PrismaService,
     private metadataService: MetadataService,
-    @Inject(forwardRef(() => LinkCheckerService))
-    private linkCheckerService: LinkCheckerService,
     private cabinetMediaService: CabinetMediaService,
-    @InjectQueue("bookmark-enrichment")
-    private enrichmentQueue: Queue
+    private metadataQueue: MetadataQueueService,
+    private tasks: BackgroundTasksService,
   ) {}
 
-  onModuleInit() {
-    // Automatically queue background enrichment for missing metadata after startup
-    setTimeout(() => {
-      this.enrichMissingMetadata().catch((err) => {
-        this.logger.error("Startup missing metadata enrichment failed", err)
-      })
-    }, 15000)
+  savedSearches(userId: string) {
+    return this.prisma.savedSearch.findMany({ where: { userId }, orderBy: { createdAt: "desc" } })
+  }
+
+  saveSearch(userId: string, dto: { name: string; url: string }) {
+    if (!dto.name.trim()) throw new BadRequestException("Enter a search name")
+    return this.prisma.savedSearch.create({ data: { userId, name: dto.name.trim(), url: dto.url } })
+  }
+
+  deleteSearch(userId: string, id: string) {
+    return this.prisma.savedSearch.deleteMany({ where: { id, userId } })
   }
 
   async create(userId: string, createBookmarkDto: CreateBookmarkDto) {
+    if (createBookmarkDto.expectedUserId && createBookmarkDto.expectedUserId !== userId) throw new ForbiddenException("This save belongs to another account")
+    const requestWhere = createBookmarkDto.clientRequestId
+      ? { userId_clientRequestId: { userId, clientRequestId: createBookmarkDto.clientRequestId } }
+      : null
+    if (requestWhere) {
+      const previous = await this.prisma.bookmark.findUnique({ where: requestWhere, include: { tags: true, folder: { select: folderSummary } } })
+      if (previous) return previous
+    }
     const isNote =
       createBookmarkDto.type === BookmarkType.NOTE || !createBookmarkDto.url
     const itemType = isNote ? BookmarkType.NOTE : BookmarkType.BOOKMARK
@@ -82,19 +88,17 @@ export class BookmarksService implements OnModuleInit {
       throw new BadRequestException("Invalid note document")
     }
 
-    let extracted: any = {}
-    let contentType: BookmarkContentType | null = null
-
-    if (!isNote && createBookmarkDto.url) {
-      extracted = await this.metadataService.extract(createBookmarkDto.url)
-
-      // A known video link wins; otherwise trust what the page or file itself declared.
-      if (this.cabinetMediaService.isVideoUrl(createBookmarkDto.url)) {
-        contentType = BookmarkContentType.VIDEO
-      } else if (extracted.contentType) {
-        contentType = BookmarkContentType[extracted.contentType as keyof typeof BookmarkContentType]
-      }
+    let fallbackTitle = "Untitled Note"
+    if (!isNote) {
+      try {
+        const url = new URL(createBookmarkDto.url!)
+        if (!["http:", "https:"].includes(url.protocol)) throw new Error()
+        fallbackTitle = url.hostname.replace(/^www\./, "")
+      } catch { throw new BadRequestException("Enter an HTTP or HTTPS URL") }
     }
+    const title = createBookmarkDto.title?.trim() || fallbackTitle
+    const hasMetadata = !!(createBookmarkDto.title?.trim() && createBookmarkDto.description?.trim() && createBookmarkDto.imageUrl)
+    const contentType = !isNote && this.cabinetMediaService.isVideoUrl(createBookmarkDto.url!) ? BookmarkContentType.VIDEO : isNote ? null : createBookmarkDto.contentType ?? null
 
     // 2. Prep tags
     const tagConnectOrCreate =
@@ -116,30 +120,26 @@ export class BookmarksService implements OnModuleInit {
       }
     }
 
-    const bookmark = await this.prisma.bookmark.create({
+    const creation = {
       data: {
+        clientRequestId: createBookmarkDto.clientRequestId,
         type: itemType,
         url: createBookmarkDto.url || null,
-        title:
-          createBookmarkDto.title ||
-          extracted.title ||
-          (isNote ? "Untitled Note" : "Untitled"),
-        ...bookmarkSortFields({
-          title: createBookmarkDto.title || extracted.title || (isNote ? "Untitled Note" : "Untitled"),
-          url: createBookmarkDto.url || null,
-        }),
-        description:
-          createBookmarkDto.description || extracted.description || null,
+        title,
+        ...bookmarkSortFields({ title, url: createBookmarkDto.url || null }),
+        description: createBookmarkDto.description?.trim() || null,
+        source: createBookmarkDto.source || "WEB",
+        metadataTitlePending: !isNote && !createBookmarkDto.title?.trim(),
         // Search reads a note's plain text, e.g. a highlight saved from the browser extension.
         notes: createBookmarkDto.noteDocument ? noteDocumentText(createBookmarkDto.noteDocument) : null,
         noteDocument: createBookmarkDto.noteDocument,
-        imageUrl: extracted.imageUrl || createBookmarkDto.imageUrl || null,
-        faviconUrl: extracted.faviconUrl || createBookmarkDto.faviconUrl || null,
-        siteName: extracted.siteName || createBookmarkDto.siteName || null,
+        imageUrl: createBookmarkDto.imageUrl || null,
+        faviconUrl: createBookmarkDto.faviconUrl || null,
+        siteName: createBookmarkDto.siteName || null,
         folderId: createBookmarkDto.folderId || null,
         userId,
         contentType: contentType || (isNote ? null : undefined),
-        metadataStatus: isNote
+        metadataStatus: isNote || hasMetadata
           ? MetadataStatus.COMPLETED
           : MetadataStatus.PENDING,
         tags: {
@@ -150,26 +150,25 @@ export class BookmarksService implements OnModuleInit {
         tags: true,
         folder: { select: folderSummary },
       },
-    })
-
-    // 5. Enqueue enrichment job only for web bookmarks with URL
-    if (!isNote && bookmark.url) {
-      try {
-        await this.enrichmentQueue.add("enrich", {
-          bookmarkId: bookmark.id,
-          url: bookmark.url,
-        })
-      } catch (err: any) {
-        this.logger.error(
-          `Failed to queue enrichment job for ${bookmark.id}: ${err.message}`
-        )
-      }
+    }
+    let bookmark
+    try {
+      bookmark = await this.prisma.bookmark.create(creation)
+    } catch (error) {
+      if (!requestWhere || (error as { code?: string }).code !== "P2002") throw error
+      bookmark = await this.prisma.bookmark.findUnique({ where: requestWhere, include: creation.include })
+      if (!bookmark) throw error
     }
 
+    if (createBookmarkDto.source === "EXTENSION") await this.prisma.user.updateMany({
+      where: { id: userId, extensionLastSeenAt: null }, data: { extensionLastSeenAt: new Date() },
+    })
+    if (!isNote && bookmark.url && !hasMetadata) await this.metadataQueue.enqueue(bookmark)
     return bookmark
   }
 
   async saveNote(userId: string, id: string, dto: SaveNoteDto) {
+    if (dto.expectedUserId && dto.expectedUserId !== userId) throw new ForbiddenException("This draft belongs to another account")
     if (
       dto.noteDocument.type !== "doc" ||
       !Array.isArray(dto.noteDocument.content)
@@ -181,17 +180,35 @@ export class BookmarksService implements OnModuleInit {
     if (existing && (existing.type !== BookmarkType.NOTE || existing.deletedAt)) {
       throw new NotFoundException("Note not found")
     }
+    if ((dto.baseRevision === undefined) !== (dto.saveId === undefined)) {
+      throw new BadRequestException("Both baseRevision and saveId are required for versioned saves")
+    }
+    const versioned = dto.baseRevision !== undefined
+    const revisionData = { noteRevision: { increment: 1 }, noteSaveId: dto.saveId ?? null }
+    const conflict = () => new ConflictException("This note changed in another tab or device. Reload the saved note or explicitly keep your draft.")
+    const checkRevision = () => {
+      if (versioned && (existing?.noteRevision ?? 0) !== dto.baseRevision) throw conflict()
+    }
     if (existing && existing.userId !== userId) {
       // Editors of a shared folder change a note's title and content; its folder and tags stay with the author.
       const editable = existing.folderId
         ? await this.prisma.folder.findFirst({ where: { id: existing.folderId, ...editableFolder(userId) }, select: { id: true } })
         : null
       if (!editable) throw new NotFoundException("Note not found")
+      if (dto.saveId && existing.noteSaveId === dto.saveId) return { ...existing, tags: [], canEdit: false, access: "editor" as const }
+      checkRevision()
       const title = dto.title?.trim() || "Untitled note"
       const updated = await this.prisma.bookmark.update({
-        where: { id },
-        data: { title, ...bookmarkSortFields({ title }), notes: dto.notes ?? "", noteDocument: dto.noteDocument },
+        where: { id, ...(versioned ? { noteRevision: dto.baseRevision } : {}) },
+        data: { title, ...bookmarkSortFields({ title }), notes: dto.notes ?? "", noteDocument: dto.noteDocument, ...revisionData },
         include: { tags: true, folder: { select: folderSummary } },
+      }).catch(async (error) => {
+        if ((error as { code?: string }).code === "P2025" && versioned) {
+          const latest = await this.prisma.bookmark.findFirst({ where: { id, type: BookmarkType.NOTE, deletedAt: null } })
+          if (latest?.noteSaveId === dto.saveId) return latest
+          throw conflict()
+        }
+        throw error
       })
       return { ...updated, tags: [], canEdit: false, access: "editor" as const }
     }
@@ -220,7 +237,20 @@ export class BookmarksService implements OnModuleInit {
         }
       : undefined
     const include = { tags: true, folder: { select: folderSummary } }
+    if (dto.saveId && existing?.noteSaveId === dto.saveId) return existing
+    checkRevision()
     try {
+      if (versioned) {
+        if (existing) return await this.prisma.bookmark.update({
+          where: { ...where, noteRevision: dto.baseRevision },
+          data: { ...data, ...revisionData, tags: tags && { set: [], ...tags } },
+          include,
+        })
+        return await this.prisma.bookmark.create({
+          data: { id, userId, folderId: dto.folderId || null, type: BookmarkType.NOTE, metadataStatus: MetadataStatus.COMPLETED, ...data, noteRevision: 1, noteSaveId: dto.saveId, tags },
+          include,
+        })
+      }
       // A stable client-generated UUID makes retries safe after a lost response.
       return await this.prisma.bookmark.upsert({
         where,
@@ -233,18 +263,23 @@ export class BookmarksService implements OnModuleInit {
           ...data,
           tags,
         },
-        update: { ...data, tags: tags && { set: [], ...tags } },
+        update: { ...data, ...revisionData, tags: tags && { set: [], ...tags } },
         include,
       })
     } catch (error) {
       const code = (error as { code?: string }).code
       if (code !== "P2002" && code !== "P2025") throw error
+      if (versioned) {
+        const latest = await this.prisma.bookmark.findFirst({ where })
+        if (latest?.noteSaveId === dto.saveId) return latest
+        throw conflict()
+      }
       // An existing ID is writable only by its owner, and only while it is an active note.
       const note = await this.prisma.bookmark.findFirst({ where })
       if (!note) throw new NotFoundException("Note not found")
       return this.prisma.bookmark.update({
         where,
-        data: { ...data, tags: tags && { set: [], ...tags } },
+        data: { ...data, ...revisionData, tags: tags && { set: [], ...tags } },
         include,
       })
     }
@@ -336,30 +371,9 @@ export class BookmarksService implements OnModuleInit {
       throw new NotFoundException("Bookmark not found")
     }
 
-    const updated = await this.prisma.bookmark.update({
-      where: { id: bookmark.id },
-      data: {
-        metadataStatus: MetadataStatus.PENDING,
-        metadataError: null,
-      },
-      include: {
-        tags: true,
-        folder: { select: folderSummary },
-      },
-    })
-
-    try {
-      await this.enrichmentQueue.add("enrich", {
-        bookmarkId: bookmark.id,
-        url: bookmark.url,
-      })
-    } catch (err: any) {
-      this.logger.error(
-        `Failed to queue refresh enrichment job for ${bookmark.id}: ${err.message}`
-      )
-    }
-
-    return updated
+    if (bookmark.type !== BookmarkType.BOOKMARK || !bookmark.url) throw new BadRequestException("Only web bookmarks have metadata")
+    await this.metadataQueue.enqueue(bookmark, true)
+    return this.findOne(userId, id)
   }
 
   async findAll(
@@ -377,6 +391,9 @@ export class BookmarksService implements OnModuleInit {
       type?: BookmarkType
       contentType?: BookmarkContentType
       sort?: BookmarkSort
+      domain?: string
+      addedAfter?: string
+      addedBefore?: string
     }
   ) {
     if (filters.sort !== undefined && !Object.values(BookmarkSort).includes(filters.sort)) {
@@ -385,12 +402,18 @@ export class BookmarksService implements OnModuleInit {
     if (filters.limit !== undefined && (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 100)) {
       throw new BadRequestException("Limit must be an integer between 1 and 100")
     }
+    const refinements = searchRefinements(filters)
     // ponytail: single where condition handles both active items and trash
     const where: any = {
       userId,
       deletedAt: filters.isTrash ? { not: null } : null,
     }
 
+    if (refinements.domain) where.sortDomain = refinements.domain
+    if (refinements.after || refinements.before) where.createdAt = {
+      ...(refinements.after ? { gte: refinements.after } : {}),
+      ...(refinements.before ? { lt: refinements.before } : {}),
+    }
     if (filters.type) {
       where.type = filters.type
     }
@@ -442,15 +465,14 @@ export class BookmarksService implements OnModuleInit {
         delete where.userId
         where.AND = [{ OR: [{ userId }, { folder: { is: accessibleFolder(userId) } }] }]
       }
-      where.OR = [
-        { title: { contains: filters.search, mode: "insensitive" } },
-        { description: { contains: filters.search, mode: "insensitive" } },
-        // A link's notes are personal; a note's text is shared with its folder.
-        { AND: [{ OR: [{ userId }, { type: BookmarkType.NOTE }] }, { notes: { contains: filters.search, mode: "insensitive" } }] },
-        { url: { contains: filters.search, mode: "insensitive" } },
-      ]
+      // Search is ranked in PostgreSQL; Prisma reapplies access when fetching the actual rows.
+
     }
 
+    const ranked = filters.search?.trim()
+      ? await this.prisma.$queryRaw<Array<{ id: string; total: number }>>(bookmarkSearchQuery(userId, filters))
+      : null
+    if (ranked) where.id = { in: ranked.map((row) => row.id) }
     const take = filters.limit
     const findParams: any = {
       where,
@@ -463,7 +485,7 @@ export class BookmarksService implements OnModuleInit {
       orderBy: bookmarkOrderBy(filters.sort),
     }
 
-    if (take !== undefined) {
+    if (take !== undefined && !ranked) {
       findParams.take = take + 1
       if (filters.cursor) {
         findParams.cursor = { id: filters.cursor }
@@ -472,9 +494,9 @@ export class BookmarksService implements OnModuleInit {
     }
 
     const itemsPromise = this.prisma.bookmark.findMany(findParams)
-    const countPromise = filters.cursor
-      ? Promise.resolve(undefined)
-      : this.prisma.bookmark.count({ where })
+    const countPromise = ranked
+      ? Promise.resolve(filters.cursor ? undefined : ranked[0]?.total ?? 0)
+      : filters.cursor ? Promise.resolve(undefined) : this.prisma.bookmark.count({ where })
 
     const editableFolderIdsPromise = this.prisma.folder.findMany({
       where: editableFolder(userId),
@@ -487,6 +509,10 @@ export class BookmarksService implements OnModuleInit {
     ])
     const editableFolderIds = new Set(editableFolders.map((folder) => folder.id))
 
+    if (ranked) {
+      const positions = new Map(ranked.map((row, index) => [row.id, index]))
+      items.sort((a, b) => positions.get(a.id)! - positions.get(b.id)!)
+    }
     let nextCursor: string | null = null
     let slicedItems = items
     if (take !== undefined) {
@@ -551,7 +577,7 @@ export class BookmarksService implements OnModuleInit {
   ) {
     const existing = await this.prisma.bookmark.findFirst({
       where: { id, deletedAt: null, AND: [editableBookmark(userId)] },
-      select: { userId: true },
+      select: { userId: true, type: true },
     })
     if (!existing) throw new NotFoundException("Bookmark not found")
     if (existing.userId !== userId) {
@@ -588,8 +614,10 @@ export class BookmarksService implements OnModuleInit {
         type: updateBookmarkDto.type,
         url: updateBookmarkDto.url,
         title: updateBookmarkDto.title,
+        ...(updateBookmarkDto.title !== undefined ? { metadataTitlePending: false } : {}),
         description: updateBookmarkDto.description,
         notes: updateBookmarkDto.notes,
+        ...(existing.type === BookmarkType.NOTE ? { noteRevision: { increment: 1 }, noteSaveId: null } : {}),
         ...bookmarkSortFields(updateBookmarkDto),
         isPinned: updateBookmarkDto.isPinned,
         isFavorite: updateBookmarkDto.isFavorite,
@@ -804,77 +832,31 @@ export class BookmarksService implements OnModuleInit {
   }
 
   async importBookmarks(userId: string, htmlContent: string) {
-    const lines = htmlContent.split("\n")
-    let currentFolderId: string | null = null
-    let importCount = 0
+    parseBookmarkImport(htmlContent)
+    return this.tasks.create(userId, "IMPORT", { html: htmlContent })
+  }
 
-    for (const line of lines) {
-      // 1. Match folder creation
-      const folderMatch = line.match(/<H3[^>]*>([^<]+)<\/H3>/i)
-      if (folderMatch) {
-        const folderName = folderMatch[1].trim()
-        const folder = await this.prisma.folder.create({
-          data: { name: folderName, userId },
-        })
-        currentFolderId = folder.id
-        continue
-      }
-
-      // 2. Close folder context
-      if (line.includes("</DL>")) {
-        currentFolderId = null
-      }
-
-      // 3. Match bookmark link
-      const bookmarkMatch = line.match(
-        /<A\s+HREF=["']([^"']+)["'][^>]*>([^<]+)<\/A>/i
-      )
-      if (bookmarkMatch) {
-        const url = bookmarkMatch[1].trim()
-        const title = bookmarkMatch[2].trim()
-
-        // Check for tags attribute
-        const tagsMatch = line.match(/TAGS=["']([^"']+)["']/i)
-        const tags = tagsMatch
-          ? tagsMatch[1]
-              .split(",")
-              .map((t) => t.trim())
-              .filter((t) => t.length > 0)
-          : []
-
-        const newBookmark = await this.prisma.bookmark.create({
-          data: {
-            url,
-            title,
-            ...bookmarkSortFields({ title, url }),
-            userId,
-            folderId: currentFolderId,
-            metadataStatus: MetadataStatus.PENDING,
-            tags: {
-              connectOrCreate: tags.map((name) => ({
-                where: { name_userId: { name: name.toLowerCase(), userId } },
-                create: { name: name.toLowerCase(), userId },
-              })),
-            },
-          },
-        })
-        importCount++
-
-        // Enqueue background enrichment job to fetch OpenGraph image, title, and description
-        try {
-          await this.enrichmentQueue.add("enrich", {
-            bookmarkId: newBookmark.id,
-            url: newBookmark.url,
-          })
-        } catch (err: any) {
-          this.logger.error(
-            `Failed to queue enrichment job for imported bookmark ${newBookmark.id}: ${err.message}`
-          )
+  async performImport(taskId: string, userId: string, html: string, progress: (processed: number, total: number, failed: number) => Promise<void>) {
+    const { entries, skipped } = parseBookmarkImport(html)
+    const total = entries.filter((entry) => entry.kind === "bookmark").length
+    let processed = 0
+    await progress(0, total, skipped)
+    try {
+      for (const [index, entry] of entries.entries()) {
+        const folderId = entry.parent === null ? undefined : stableTaskId(`${taskId}:folder:${entry.parent}`)
+        if (entry.kind === "folder") {
+          const id = stableTaskId(`${taskId}:folder:${index}`)
+          await this.prisma.folder.upsert({ where: { id, userId }, create: { id, userId, name: entry.title, parentId: folderId }, update: {} })
+        } else {
+          // Stable operation IDs make a retry after a partial import safe for folders and links.
+          await this.create(userId, { url: entry.url, title: entry.title, tags: entry.tags, folderId, source: "IMPORT", clientRequestId: stableTaskId(`${taskId}:bookmark:${index}`) })
+          processed++
+          if (processed % 25 === 0) await progress(processed, total, skipped)
         }
       }
+    } finally {
+      await progress(processed, total, skipped)
     }
-
-    return { imported: importCount }
   }
 
   async exportBookmarks(userId: string) {
@@ -1182,58 +1164,17 @@ export class BookmarksService implements OnModuleInit {
   }
 
   async enrichMissingMetadata(userId?: string) {
-    const where: any = {
-      deletedAt: null,
-      OR: [
-        { imageUrl: null },
-        { description: null },
-        { metadataStatus: MetadataStatus.PENDING },
-      ],
-    }
-    if (userId) {
-      where.userId = userId
-    }
-
     const bookmarks = await this.prisma.bookmark.findMany({
-      where,
-      take: 100,
-      orderBy: { createdAt: "desc" },
+      where: { ...(userId ? { userId } : {}), deletedAt: null, type: BookmarkType.BOOKMARK, url: { not: null }, metadataStatus: { in: [MetadataStatus.PENDING, MetadataStatus.FAILED] } },
+      select: { id: true, url: true }, take: 100, orderBy: { createdAt: "desc" },
     })
-
-    let queuedCount = 0
-    for (const b of bookmarks) {
-      try {
-        await this.enrichmentQueue.add("enrich", {
-          bookmarkId: b.id,
-          url: b.url,
-        })
-        queuedCount++
-      } catch (err: any) {
-        this.logger.error(
-          `Failed to queue missing metadata enrichment for ${b.id}: ${err.message}`
-        )
-      }
-    }
-
-    this.logger.log(
-      `Queued ${queuedCount} bookmarks for missing metadata enrichment (found ${bookmarks.length})`
-    )
-    return { queued: queuedCount, totalFound: bookmarks.length }
+    let queued = 0
+    for (const bookmark of bookmarks) if (await this.metadataQueue.enqueue(bookmark, true)) queued++
+    return { queued, totalFound: bookmarks.length }
   }
 
   async triggerHealthCheck(userId: string) {
-    // ponytail: trigger runScan and enrichMissingMetadata asynchronously to prevent blocking the HTTP response
-    this.linkCheckerService.runScan().catch((err) => {
-      console.error("Triggered health scan failed", err)
-    })
-    this.enrichMissingMetadata(userId).catch((err) => {
-      console.error("Triggered missing metadata enrichment failed", err)
-    })
-    return {
-      success: true,
-      message:
-        "Health scan and missing metadata enrichment started in background",
-    }
+    return this.tasks.create(userId, "LINK_CHECK")
   }
 
   async reorder(userId: string, ids: string[]) {

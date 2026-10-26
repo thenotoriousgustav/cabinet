@@ -1,16 +1,17 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { RuntimeMetricsService } from "@/health/runtime-metrics.service";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
 @Injectable()
 export class PrismaService
-  extends PrismaClient
+  extends PrismaClient<Prisma.PrismaClientOptions, "query">
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly pool: Pool;
 
-  constructor() {
+  constructor(metrics: RuntimeMetricsService) {
     const connectionString = process.env.DATABASE_URL;
     const pool = new Pool({
       connectionString,
@@ -19,7 +20,8 @@ export class PrismaService
       connectionTimeoutMillis: 5000,
     });
     const adapter = new PrismaPg(pool);
-    super({ adapter });
+    super({ adapter, log: [{ emit: "event", level: "query" }] });
+    this.$on("query", (event) => metrics.query(event.query, event.duration));
     this.pool = pool;
   }
 

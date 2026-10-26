@@ -9,11 +9,12 @@ import {
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem,
   DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
-import { SortAscending, MagnifyingGlass, Plus, CaretDown, BookmarkSimple, FileText, Scribble, X, Sliders, Command } from "@phosphor-icons/react"
+import { SortAscending, MagnifyingGlass, Plus, CaretDown, BookmarkSimple, FileText, Scribble, X, Sliders, Command, UploadSimple } from "@phosphor-icons/react"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { bookmarkSortOptions, isBookmarkSort, type BookmarkSort } from "@/lib/bookmark-order"
 import { defaultDisplayPreferences, densityOptions, isDensity, type DisplayPreferences } from "./display-preferences"
 import { BookmarkDialog } from "./bookmark-dialog"
+import { UploadFileDialog } from "./upload-file-dialog"
 
 interface ViewControlsProps {
   sort?: BookmarkSort
@@ -74,6 +75,8 @@ interface ToolbarProps {
   onSearchChange: (value: string) => void
   isBookmarkModalOpen: boolean
   setIsBookmarkModalOpen: (open: boolean) => void
+  isUploadModalOpen?: boolean
+  setIsUploadModalOpen?: (open: boolean) => void
   bookmarkToEdit: any
   bookmarkForm: any
   folders: any[]
@@ -83,8 +86,12 @@ interface ToolbarProps {
   onCreateDrawing?: () => void
 }
 
-export function Toolbar({ searchQuery, onSearchChange, isBookmarkModalOpen, setIsBookmarkModalOpen, bookmarkToEdit, bookmarkForm, folders, tags = [], resetBookmarkForm, onOpenCommandMenu, onCreateDrawing }: ToolbarProps) {
+export function Toolbar({ searchQuery, onSearchChange, isBookmarkModalOpen, setIsBookmarkModalOpen, isUploadModalOpen, setIsUploadModalOpen, bookmarkToEdit, bookmarkForm, folders, tags = [], resetBookmarkForm, onOpenCommandMenu, onCreateDrawing }: ToolbarProps) {
   const router = useRouter()
+  const [localUploadOpen, setLocalUploadOpen] = React.useState(false)
+  const isUploadOpen = isUploadModalOpen ?? localUploadOpen
+  const setUploadOpen = setIsUploadModalOpen ?? setLocalUploadOpen
+
   const handleCreate = (type: "BOOKMARK" | "NOTE") => {
     resetBookmarkForm()
     if (type === "NOTE") {
@@ -116,11 +123,13 @@ export function Toolbar({ searchQuery, onSearchChange, isBookmarkModalOpen, setI
               <DropdownMenuItem className="whitespace-nowrap" onSelect={() => handleCreate("BOOKMARK")}><BookmarkSimple /> Add bookmark</DropdownMenuItem>
               <DropdownMenuItem className="whitespace-nowrap" onSelect={() => handleCreate("NOTE")}><FileText /> Create note</DropdownMenuItem>
               {onCreateDrawing && <DropdownMenuItem className="whitespace-nowrap" onSelect={onCreateDrawing}><Scribble /> New drawing</DropdownMenuItem>}
+              <DropdownMenuItem className="whitespace-nowrap" onSelect={() => setUploadOpen(true)}><UploadSimple /> Upload file (PDF / Image)</DropdownMenuItem>
             </DropdownMenuGroup></DropdownMenuContent>
           </DropdownMenu>
         </ButtonGroup>
       </div>
       <BookmarkDialog isOpen={isBookmarkModalOpen} onOpenChange={setIsBookmarkModalOpen} bookmarkToEdit={bookmarkToEdit} bookmarkForm={bookmarkForm} folders={folders} tags={tags} onClose={() => setIsBookmarkModalOpen(false)} />
+      <UploadFileDialog isOpen={isUploadOpen} onOpenChange={setUploadOpen} folders={folders} selectedFolderId={bookmarkForm?.state?.values?.folderId} />
     </div>
   )
 }

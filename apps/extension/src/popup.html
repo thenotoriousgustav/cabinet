@@ -18,6 +18,12 @@
       </button>
     </header>
 
+    <section id="outbox-panel" class="state" hidden aria-label="Pending saves">
+      <p id="outbox-summary" class="muted" role="status"></p>
+      <ul id="outbox-items"></ul>
+      <button type="button" class="button" id="retry-sync">Retry sync</button>
+    </section>
+
     <section id="state-loading" class="state" role="status">
       <div class="skeleton line wide"></div>
       <div class="skeleton field"></div>
@@ -66,7 +72,7 @@
     <section id="state-saved" class="state" hidden>
       <p class="message-title">
         <svg viewBox="0 0 256 256" aria-hidden="true" class="check"><path fill="currentColor" d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg>
-        Saved
+        <span id="saved-title">Saved</span>
       </p>
       <p class="muted" id="saved-text"></p>
       <div class="actions">

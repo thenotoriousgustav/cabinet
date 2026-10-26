@@ -107,6 +107,28 @@ test("webview waits for the framing check before loading the site", () => {
   assert.match(html, /Preparing preview/)
 })
 
+test("webview renders dedicated image viewer with zoom and download for image bookmarks", () => {
+  const html = render("https://example.com/photo.png", undefined, { contentType: "IMAGE" })
+  assert.match(html, /<img[^>]+src="https:\/\/example\.com\/photo\.png"/)
+  assert.match(html, /Download/)
+  assert.match(html, /100%/)
+  assert.match(html, /Open original/)
+  assert.doesNotMatch(html, /<iframe/)
+  assert.doesNotMatch(html, /Preparing preview/)
+})
+
+test("webview renders custom pdf canvas viewer with scroll modes and download", () => {
+  const html = render("https://example.com/document.pdf", undefined, { contentType: "PDF" })
+  assert.match(html, /<canvas/)
+  assert.match(html, /Continuous/)
+  assert.match(html, /Single page/)
+  assert.match(html, /Download/)
+  assert.match(html, /Open original/)
+  assert.doesNotMatch(html, /<object/)
+  assert.doesNotMatch(html, /<iframe/)
+  assert.doesNotMatch(html, /Preparing preview/)
+})
+
 test("webview rejects executable, local-file, and malformed URLs", () => {
   for (const url of ["javascript:alert(1)", "data:text/html,hello", "file:///etc/passwd", "invalid"]) {
     const client = new QueryClient()

@@ -37,6 +37,19 @@ export function isDrawingBookmark(bookmark: BookmarkLike): boolean {
   return bookmark.type === "DRAWING"
 }
 
+export function isPdfBookmark(bookmark: BookmarkLike): boolean {
+  if (bookmark.contentType === "PDF") return true
+  const url = parsedUrl(bookmark.url)
+  return !!url && url.pathname.toLowerCase().endsWith(".pdf")
+}
+
+export function isImageBookmark(bookmark: BookmarkLike): boolean {
+  if (bookmark.contentType === "IMAGE") return true
+  const url = parsedUrl(bookmark.url)
+  if (!url) return false
+  return /\.(jpe?g|png|webp|gif|svg)$/i.test(url.pathname)
+}
+
 /** Notes, plus items without a link that are not drawings (older notes predate the type field). */
 export function isNoteBookmark(bookmark: BookmarkLike): boolean {
   return bookmark.type === "NOTE" || (!bookmark.url && bookmark.type !== "DRAWING")

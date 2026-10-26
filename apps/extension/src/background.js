@@ -1,4 +1,35 @@
-import { SignedOutError, getLastFolderId, openCabinet, pageMetadata, saveBookmark, saveHighlight, saveableUrl } from "./cabinet.js"
+import { SignedOutError, api, getSession, getSettings, setWorkerSave, getLastFolderId, openCabinet, pageMetadata, saveBookmark, saveHighlight, saveableUrl } from "./cabinet.js"
+import { createOutbox } from "./outbox.js"
+
+const outbox = createOutbox({
+  load: async () => (await chrome.storage.local.get({ outbox: [] })).outbox,
+  store: (outbox) => chrome.storage.local.set({ outbox }),
+  session: getSession,
+  settings: getSettings,
+  send: (body) => api("/v1/bookmarks", { method: "POST", body }),
+})
+setWorkerSave(outbox.save)
+const sync = async () => {
+  await outbox.flush()
+  const items = await outbox.list()
+  await chrome.action.setBadgeText({ text: items.length ? String(items.length) : "" })
+  await chrome.action.setTitle({ title: items.length ? `${items.length} saves waiting to sync` : "Save to Cabinet" })
+}
+void chrome.alarms.get("cabinet-sync").then((alarm) => {
+  if (!alarm) return chrome.alarms.create("cabinet-sync", { periodInMinutes: 1 })
+})
+chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === "cabinet-sync") void sync() })
+chrome.runtime.onStartup.addListener(() => void sync())
+chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+  let task
+  if (message.type === "cabinet-save") task = outbox.save(message.body)
+  else if (message.type === "cabinet-outbox") task = outbox.list()
+  else if (message.type === "cabinet-retry") task = outbox.retry().then(() => outbox.list())
+  else if (message.type === "cabinet-discard") task = outbox.discard(message.id).then(() => outbox.list())
+  if (!task) return
+  task.then(respond, (error) => respond({ error: error.message }))
+  return true
+})
 
 const MENU_PAGE = "cabinet-save-page"
 const MENU_LINK = "cabinet-save-link"
@@ -13,11 +44,11 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 /** A short mark on the toolbar icon: a check when saved, "!" when it failed. */
-async function flash(tabId, ok) {
+async function flash(tabId, ok, queued = false) {
   const options = tabId ? { tabId } : {}
   await chrome.action.setBadgeBackgroundColor({ ...options, color: ok ? "#596344" : "#9f2430" })
-  await chrome.action.setBadgeText({ ...options, text: ok ? "✓" : "!" })
-  await chrome.action.setTitle({ ...options, title: ok ? "Saved to Cabinet" : "Couldn't save to Cabinet" })
+  await chrome.action.setBadgeText({ ...options, text: queued ? "…" : ok ? "✓" : "!" })
+  await chrome.action.setTitle({ ...options, title: queued ? "Saved locally · waiting to sync" : ok ? "Saved to Cabinet" : "Couldn't save to Cabinet" })
   setTimeout(() => {
     chrome.action.setBadgeText({ ...options, text: "" })
     chrome.action.setTitle({ ...options, title: "Save to Cabinet" })
@@ -30,8 +61,8 @@ async function quickSave({ url, title, tabId, fromPage = false }) {
   try {
     // Only the page being viewed can be read; a saved link's metadata is fetched by Cabinet.
     const metadata = fromPage ? await pageMetadata(tabId) : {}
-    await saveBookmark({ url, title, folderId: await getLastFolderId(), metadata })
-    await flash(tabId, true)
+    const result = await saveBookmark({ url, title, folderId: await getLastFolderId(), metadata })
+    await flash(tabId, true, result.queued)
   } catch (error) {
     await flash(tabId, false)
     if (error instanceof SignedOutError) await openCabinet("/login")
@@ -55,8 +86,8 @@ async function quickSaveHighlight({ tab, frameId, fallback }) {
   if (!tab?.id || !saveableUrl(tab.url || "")) return flash(tab?.id, false)
   try {
     const text = await selectedText(tab.id, frameId, fallback)
-    await saveHighlight({ text, url: tab.url, title: tab.title, folderId: await getLastFolderId() })
-    await flash(tab.id, true)
+    const result = await saveHighlight({ text, url: tab.url, title: tab.title, folderId: await getLastFolderId() })
+    await flash(tab.id, true, result.queued)
   } catch (error) {
     await flash(tab.id, false)
     if (error instanceof SignedOutError) await openCabinet("/login")
