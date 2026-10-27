@@ -41,7 +41,7 @@ services:
     logging: *logging
 
   api:
-    image: cabinet-api:${IMAGE_TAG:-latest}
+    image: ${API_IMAGE:-ghcr.io/thenotoriousgustav/cabinet-api}:${IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: docker/api.Dockerfile
@@ -106,7 +106,7 @@ services:
     logging: *logging
 
   seed:
-    image: cabinet-api:${IMAGE_TAG:-latest}
+    image: ${API_IMAGE:-ghcr.io/thenotoriousgustav/cabinet-api}:${IMAGE_TAG:-latest}
     profiles: [tools]
     init: true
     environment:

@@ -72,7 +72,31 @@ python3 docker/smoke.py
 
 The smoke check tests session login, protected routes, database queries, note save/read/delete, and logout. It creates and removes only its own temporary note. `python3 docker/test-init-env.py` checks secret generation and overwrite protection without accessing a database.
 
-## Updates
+## Automated Deployment (CI/CD via GitHub Actions & GHCR)
+
+Pushes to `main` triggering API changes automatically build a production container on GitHub Actions, push it to GitHub Container Registry (`ghcr.io`), and deploy to the VPS over SSH.
+
+### Required GitHub Secrets & Variables
+
+In GitHub repository **Settings > Secrets and variables > Actions**:
+
+- **Secrets:**
+  - `SSH_PRIVATE_KEY`: Private SSH key authorized on the VPS (`adminrekasandi@38.9.46.133`).
+- **Variables** (optional, defaults are embedded):
+  - `SSH_HOST`: `38.9.46.133`
+  - `SSH_PORT`: `2222`
+  - `SSH_USER`: `adminrekasandi`
+
+The workflow automatically:
+1. Builds `docker/api.Dockerfile` with Buildx and GitHub layer caching.
+2. Pushes tags `latest` and short commit SHA to `ghcr.io/<owner>/cabinet-api`.
+3. Copies updated `docker/compose.production.yml` and `docker/Caddyfile` to the VPS.
+4. Logs into GHCR on the VPS using the workflow token, updates `IMAGE_TAG`, and pulls the new image.
+5. Runs Prisma migrations (`pnpm exec prisma migrate deploy`) in an isolated container.
+6. Recreates the `api` service with `--wait` and verifies `/v1/health`.
+7. Prunes dangling images.
+
+## Manual Updates
 
 Preserve `docker/.env` and the Docker volumes when updating source files. Set a unique `IMAGE_TAG` in the environment file before building so the previous image remains available for rollback.
 

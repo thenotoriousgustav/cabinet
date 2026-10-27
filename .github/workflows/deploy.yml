@@ -1,0 +1,151 @@
+name: Build & Deploy Backend
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'docker/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.version.outputs.short_sha }}
+      image_name: ${{ env.IMAGE_NAME }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve lowercase image name
+        id: version
+        run: |
+          LOWER_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=${LOWER_OWNER}/cabinet-api" >> $GITHUB_ENV
+          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short,prefix=
+            type=sha,format=long,prefix=
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to VPS
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout configuration
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docker/compose.production.yml
+            docker/Caddyfile
+          sparse-checkout-cone-mode: false
+
+      - name: Sync compose files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST || vars.SSH_HOST || '38.9.46.133' }}
+          port: ${{ secrets.SSH_PORT || vars.SSH_PORT || 2222 }}
+          username: ${{ secrets.SSH_USER || vars.SSH_USER || 'adminrekasandi' }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker/compose.production.yml,docker/Caddyfile"
+          target: "/home/adminrekasandi/cabinet"
+          strip_components: 0
+
+      - name: Deploy container and run migrations
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST || vars.SSH_HOST || '38.9.46.133' }}
+          port: ${{ secrets.SSH_PORT || vars.SSH_PORT || 2222 }}
+          username: ${{ secrets.SSH_USER || vars.SSH_USER || 'adminrekasandi' }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            cd /home/adminrekasandi/cabinet
+
+            # Authenticate to GHCR in case the container package is private
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            # Point to GHCR image and specific short commit SHA
+            SHORT_SHA="${{ needs.build-and-push.outputs.version }}"
+            FULL_IMAGE="ghcr.io/${{ needs.build-and-push.outputs.image_name }}"
+
+            # Ensure API_IMAGE in .env points to GHCR
+            if grep -q "^API_IMAGE=" docker/.env; then
+              sed -i "s|^API_IMAGE=.*|API_IMAGE='${FULL_IMAGE}'|" docker/.env
+            else
+              echo "API_IMAGE='${FULL_IMAGE}'" >> docker/.env
+            fi
+
+            # Update IMAGE_TAG to current deployment tag
+            if grep -q "^IMAGE_TAG=" docker/.env; then
+              sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG='${SHORT_SHA}'|" docker/.env
+            else
+              echo "IMAGE_TAG='${SHORT_SHA}'" >> docker/.env
+            fi
+
+            # Pull the new image from GHCR
+            docker compose --env-file docker/.env -f docker/compose.production.yml pull api
+
+            # Apply Prisma database migrations
+            docker compose --env-file docker/.env -f docker/compose.production.yml run --rm --no-deps api pnpm exec prisma migrate deploy
+
+            # Recreate api service with zero downtime
+            docker compose --env-file docker/.env -f docker/compose.production.yml up -d --wait api
+
+            # Health verification
+            echo "Verifying API health..."
+            curl --fail --silent --show-error --retry 6 --retry-delay 3 http://localhost:4000/v1/health
+
+            # Prune dangling/old images
+            docker image prune -f
+            echo "Deployment completed successfully!"
