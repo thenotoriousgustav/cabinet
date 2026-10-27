@@ -367,7 +367,10 @@ export function BookmarkWebview({
   const [contentConfirmed, setContentConfirmed] = useState(false)
   // The site refused the proxy (bot protection), so retrying the live preview cannot help.
   const [siteBlocked, setSiteBlocked] = useState(false)
+  const [isSafari, setIsSafari] = useState(false)
   const website = safeHttpUrl(bookmark.url)
+  const isGoogleDocs = website?.hostname === "docs.google.com" || website?.hostname.endsWith(".docs.google.com")
+  const safariGoogleDocs = isSafari && isGoogleDocs
   const youtubeEmbedUrl = getYouTubeEmbedUrl(website?.href)
 
   const isImage = isImageBookmark(bookmark)
@@ -393,8 +396,12 @@ export function BookmarkWebview({
   const thumbnail = getProxiedImageUrl(bookmark.imageUrl)
   const [thumbnailFailed, setThumbnailFailed] = useState(false)
   const unavailable = status === "error"
-  const showReference = unavailable || showSummary
+  const showReference = safariGoogleDocs || unavailable || showSummary
   const showFrame = !isMediaAsset && !!website && !showReference && (!!youtubeEmbedUrl || !embedCheck.isPending)
+
+  useEffect(() => {
+    setIsSafari(/^((?!chrome|android).)*safari/i.test(navigator.userAgent))
+  }, [])
 
   useEffect(() => {
     if (isMediaAsset) return
@@ -541,7 +548,11 @@ export function BookmarkWebview({
                         <CardDescription>{website.hostname}</CardDescription>
                       </CardHeader>
                       <CardContent className="flex flex-col items-start gap-3 px-4 pb-4">
-                        {unavailable && (
+                        {safariGoogleDocs ? (
+                          <p className="text-sm text-muted-foreground">
+                            Google Docs preview is not reliable in Safari because of browser privacy restrictions. Open the document directly to use your Google sign-in.
+                          </p>
+                        ) : unavailable && (
                           <p className="text-sm text-muted-foreground">
                             {siteBlocked
                               ? `${website.hostname} blocks previews from other apps, so it can only be read on the original site.`
@@ -588,7 +599,7 @@ export function BookmarkWebview({
             )}
           </section>
           {inspector && (
-            <div hidden={!showDetails} className="h-[42%] min-h-0 shrink-0 overflow-y-auto border-t lg:h-full lg:w-80 lg:border-t-0 lg:border-l">
+            <div hidden={!showDetails} className="h-[42%] min-h-0 w-full shrink-0 overflow-hidden border-t lg:h-full lg:w-96 lg:border-t-0 lg:border-l">
               {inspector}
             </div>
           )}

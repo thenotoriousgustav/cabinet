@@ -123,7 +123,7 @@ export function Toolbar({ searchQuery, onSearchChange, isBookmarkModalOpen, setI
               <DropdownMenuItem className="whitespace-nowrap" onSelect={() => handleCreate("BOOKMARK")}><BookmarkSimple /> Add bookmark</DropdownMenuItem>
               <DropdownMenuItem className="whitespace-nowrap" onSelect={() => handleCreate("NOTE")}><FileText /> Create note</DropdownMenuItem>
               {onCreateDrawing && <DropdownMenuItem className="whitespace-nowrap" onSelect={onCreateDrawing}><Scribble /> New drawing</DropdownMenuItem>}
-              <DropdownMenuItem className="whitespace-nowrap" onSelect={() => setUploadOpen(true)}><UploadSimple /> Upload file (PDF / Image)</DropdownMenuItem>
+              <DropdownMenuItem className="whitespace-nowrap" onSelect={() => setUploadOpen(true)}><UploadSimple /> Upload file</DropdownMenuItem>
             </DropdownMenuGroup></DropdownMenuContent>
           </DropdownMenu>
         </ButtonGroup>
