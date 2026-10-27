@@ -41,6 +41,8 @@ Requires Docker Compose, Python 3, and a copy of the repository on the VPS. Comm
 ADMIN_EMAIL=admin@example.com ADMIN_NAME=Admin python3 docker/init-env.py
 # Creates docker/.env with random database, authentication, and admin secrets.
 # It refuses to overwrite an existing environment file.
+# Before starting the API, add R2_ENDPOINT, R2_ACCESS_KEY_ID,
+# R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME=cabinet to docker/.env.
 
 sudo docker compose --env-file docker/.env -f docker/compose.production.yml build api
 sudo docker compose --env-file docker/.env -f docker/compose.production.yml up -d --wait postgres redis
